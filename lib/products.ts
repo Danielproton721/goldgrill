@@ -3211,6 +3211,19 @@ export const products: Product[] = [
     "description": "Suporte Fixo 80cm Inox para Espetos Churrasqueira Alvenaria em aço inox de alta durabilidade. Acabamento premium, ideal para quem leva o churrasco a sério. Enviamos para todo o Brasil.",
     "isTest": false,
     "tags": []
+  },
+  {
+    "id": 229,
+    "name": "Produto de Teste — Pagamento (R$5)",
+    "price": 5,
+    "image": "/images/logo-gold-grill.png",
+    "rating": 5,
+    "reviews": 1,
+    "category": "Acessórios de Churrasco",
+    "slug": "produto-teste-pagamento",
+    "description": "Produto de teste para validar o fluxo de pagamento de ponta a ponta (PIX, e-mail de confirmação, painel). NÃO é um produto real — não aplicar cupom para bater o valor mínimo do gateway.",
+    "isTest": true,
+    "tags": []
   }
 ];
 
