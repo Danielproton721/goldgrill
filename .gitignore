@@ -1,0 +1,37 @@
+# v0 runtime files
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+
+# Common ignores
+node_modules/
+.next/
+.env*.local
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+tsconfig.tsbuildinfo
+
+# User requested ignores
+.playwright-mcp/
+gsb-3-300x126.png
+Selo.webp
+server.err.log
+server.log
+SKILL.md
+tools.py
+scraping_v0/
+.vscode/
+.claude/
+codex-next-dev.out.log
+codex-next-dev.err.log
+scripts/
+templates/
+email-preview.html
+
+# Backups locais do rebrand Fio Nobre -> Gold Grill (não versionar)
+*.fionobre-bak
+/public/images/_fionobre-bak/
+# Screenshots soltos de teste no root
+/*.jpeg
