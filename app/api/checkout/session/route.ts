@@ -20,6 +20,12 @@ type CheckoutItemInput = {
 const MAX_DISTINCT_ITEMS = 50
 const MAX_ITEM_QUANTITY = 20
 
+// Regras do total — DEVEM espelhar o front (cart-context COUPON_PCT=5 e
+// SHIPPING_OPTIONS do checkout). O server calcula por conta própria: o cliente
+// não decide o desconto (cupom fixo) nem inventa frete (só valores da tabela).
+const COUPON_PCT = 5
+const VALID_SHIPPING_CENTS = new Set([0, 1490]) // Frete grátis / Expresso R$14,90
+
 function getItemPriceCents(item: CheckoutItemInput) {
   const id = Number(item.id)
   const slug = typeof item.slug === "string" ? item.slug : ""
@@ -74,7 +80,7 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { items?: CheckoutItemInput[] } | null
+  let body: { items?: CheckoutItemInput[]; coupon?: unknown; shippingCents?: unknown } | null
   try {
     body = await request.json()
   } catch {
@@ -86,10 +92,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Carrinho invalido para iniciar checkout." }, { status: 400 })
   }
 
-  const token = createCheckoutSession(cart.amountCents, cart.itemCount)
+  // Total final = subtotal - cupom (server aplica) + frete (só valor de tabela).
+  // Assim a sessão assina o MESMO valor que o PIX/cartão vai cobrar.
+  const discountCents = body?.coupon ? Math.round((cart.amountCents * COUPON_PCT) / 100) : 0
+  const shipCents = Number(body?.shippingCents)
+  const shippingCents = VALID_SHIPPING_CENTS.has(shipCents) ? shipCents : 0
+  const totalCents = Math.max(0, cart.amountCents - discountCents) + shippingCents
+
+  const token = createCheckoutSession(totalCents, cart.itemCount)
   const response = NextResponse.json({
     ok: true,
-    amountCents: cart.amountCents,
+    amountCents: totalCents,
     itemCount: cart.itemCount,
     expiresInSeconds: CHECKOUT_SESSION_TTL_SECONDS,
   })

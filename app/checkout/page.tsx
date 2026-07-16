@@ -591,6 +591,10 @@ function CheckoutContent() {
           slug: item.slug,
           quantity: item.quantity,
         })),
+        // O server recalcula o total (subtotal - cupom + frete) e assina ESSE
+        // valor — pra a sessão bater com o total cobrado no PIX/cartão.
+        coupon: couponApplied,
+        shippingCents: Math.round(shippingPrice * 100),
       }),
     });
 
@@ -598,7 +602,7 @@ function CheckoutContent() {
     if (!res.ok) {
       throw new Error(data?.error || 'Nao foi possivel validar o checkout.');
     }
-  }, [items]);
+  }, [items, couponApplied, shippingPrice]);
 
   const triggerError = (newErrors: Record<string, boolean>) => {
     setErrors(newErrors);
