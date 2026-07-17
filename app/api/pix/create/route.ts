@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 // Depois de gerar o PIX, o QStash chama /api/abandoned/check nesse tempo. Se o
 // pedido não tiver sido pago, dispara o e-mail de pedido pendente. (PIX expira
 // em 10 min → 15 dá margem depois do vencimento.)
-const ABANDONED_DELAY_MIN = 15;
+const ABANDONED_DELAY_MIN = 5;
 
 // Agenda o e-mail de pedido pendente via QStash (best-effort). Precisa de
 // NEXT_PUBLIC_APP_URL (o QStash chama uma URL pública) + QSTASH_TOKEN.
