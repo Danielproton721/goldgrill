@@ -20,6 +20,7 @@ import {
   kvZRemRangeByScore,
 } from "./kv-store"
 import type { StoredOrder } from "./order-store"
+import { getTxGateway } from "./gateways/active"
 
 export { kvConfigured }
 
@@ -91,7 +92,10 @@ export async function listRecentOrders(limit = 100): Promise<AdminOrder[]> {
       const ageMin = createdMs ? (Date.now() - createdMs) / 60000 : Infinity
       status = ageMin >= ABANDONED_AFTER_MIN ? "abandonado" : "aguardando"
     }
-    out.push({ ...order, txid, status })
+    // Qual gateway processou este pedido (pagou/medusa/centurion) — pro painel
+    // deixar claro pra onde cada pagamento foi de fato.
+    const gateway = (await getTxGateway(txid)) ?? undefined
+    out.push({ ...order, txid, status, gateway })
   }
   return out
 }

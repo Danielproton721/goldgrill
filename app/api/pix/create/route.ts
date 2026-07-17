@@ -222,6 +222,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       txid,
       orderCode,
+      gateway: "medusa",
       qrCode: result.qrCode,
       qrCodeImage: result.qrCodeImage ?? null,
       expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -286,6 +287,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       txid,
       orderCode,
+      gateway: "centurion",
       qrCode: result.qrCode,
       qrCodeImage: result.qrCodeImage ?? null,
       expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -467,13 +469,16 @@ export async function POST(request: Request) {
         // Não bloqueia o pagamento; apenas o e-mail server-side pode não sair.
         console.error("[PIX API] Falha ao persistir pedido no KV:", err);
       }
-      // Agenda o e-mail de pedido pendente (Pagou.ai).
+      // Marca o gateway que processou (pro painel mostrar) e agenda o e-mail
+      // de pedido pendente (Pagou.ai).
+      await markTxGateway(String(txid), "pagou");
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
 
     return NextResponse.json({
       txid,
       orderCode,
+      gateway: "pagou",
       qrCode,
       qrCodeImage,
       expiresAt,
