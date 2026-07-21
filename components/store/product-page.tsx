@@ -8,7 +8,6 @@ import Link from "next/link"
 import { useCart } from "@/lib/cart-context"
 import { useMenu } from "@/lib/menu-context"
 import { ProductGallery } from "./product-gallery"
-import { ShippingCalculator } from "./shipping-calculator"
 import { AccordionSection } from "./accordion-section"
 import { RelatedProducts } from "./related-products"
 import { ReviewsSection } from "./reviews-section"
@@ -700,7 +699,6 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
             </div>
 
             <div className="md:hidden">
-              <ShippingCalculator />
               <div className="h-2 bg-[#f5f5f5]" />
               <AccordionSection
                 hairTypes={product.hairTypes}
