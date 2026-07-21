@@ -44,6 +44,9 @@ const PRODUCTS_PATH = "lib/products.ts"
 const PRODUCTS_MARKER = "export const products: Product[] ="
 
 // --- Conversões Product <-> ProductRow (strings pro painel) -----------------
+// `images` viaja como JSON dentro do row (ProductRow é Record<string,string>).
+// Não faz parte de EDITABLE_HEADERS (não vira coluna/input genérico) — o
+// editor renderiza a galeria com um widget próprio (ver ProductsPanel).
 function productToRow(p: Product): ProductRow {
   return {
     id: String(p.id),
@@ -56,6 +59,7 @@ function productToRow(p: Product): ProductRow {
     rating: p.rating != null ? String(p.rating) : "",
     reviews: p.reviews != null ? String(p.reviews) : "",
     description: p.description ?? "",
+    images: JSON.stringify(p.images && p.images.length ? p.images : p.image ? [p.image] : []),
   }
 }
 
@@ -72,6 +76,19 @@ function parseNum(raw: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
+// Lê a galeria enviada pelo editor (JSON em row.images). Retorna undefined se
+// o campo não veio (edição feita por outro caminho que não a UI do painel).
+function parseImages(raw: string | undefined): string[] | undefined {
+  if (raw === undefined) return undefined
+  try {
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return undefined
+    return arr.map((u) => String(u).trim()).filter(Boolean)
+  } catch {
+    return undefined
+  }
+}
+
 function rowToPartial(row: ProductRow): Partial<Product> {
   const out: Partial<Product> = {}
   if (row.name !== undefined) out.name = row.name
@@ -79,6 +96,15 @@ function rowToPartial(row: ProductRow): Partial<Product> {
   if (row.category !== undefined) out.category = row.category
   if (row.slug !== undefined) out.slug = row.slug
   if (row.description !== undefined) out.description = row.description
+
+  // A galeria manda no campo "image" (capa) — a 1ª foto da galeria sempre
+  // vira a capa, pra cards/carrinho/header (que usam só product.image)
+  // nunca ficarem dessincronizados do que aparece na PDP.
+  const images = parseImages(row.images)
+  if (images !== undefined) {
+    out.images = images
+    if (images.length) out.image = images[0]
+  }
 
   const price = parseNum(row.price)
   if (price !== undefined) out.price = price
@@ -183,7 +209,7 @@ export async function upsertProduct(row: ProductRow): Promise<void> {
       price: Number(partial.price ?? prev.price ?? 0),
       compareAtPrice: partial.compareAtPrice ?? prev.compareAtPrice,
       image,
-      images: image ? [image] : [],
+      images: partial.images ?? prev.images ?? (image ? [image] : []),
       rating: partial.rating ?? prev.rating ?? 5,
       reviews: partial.reviews ?? prev.reviews ?? 0,
       category: partial.category ?? prev.category ?? "Diversos",

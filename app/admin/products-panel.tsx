@@ -28,6 +28,7 @@ export function ProductsPanel({
   const [busy, setBusy] = useState(false)
   const [query, setQuery] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [newImageUrl, setNewImageUrl] = useState("")
 
   const idHeader = columns.id
   const headers = catalog.headers
@@ -81,15 +82,54 @@ export function ProductsPanel({
     const blank: ProductRow = {}
     headers.forEach((h) => (blank[h] = ""))
     blank[idHeader] = nextId()
+    blank.images = "[]"
     setEditing(blank)
     setIsNew(true)
     setMsg(null)
+    setNewImageUrl("")
   }
 
   function startEdit(row: ProductRow) {
     setEditing({ ...row })
     setIsNew(false)
     setMsg(null)
+    setNewImageUrl("")
+  }
+
+  // Galeria de fotos: viaja como JSON dentro de editing.images (ver lib/catalog.ts).
+  function galleryOf(row: ProductRow | null): string[] {
+    if (!row) return []
+    try {
+      const arr = JSON.parse(row.images ?? "[]")
+      return Array.isArray(arr) ? arr.filter((u) => typeof u === "string") : []
+    } catch {
+      return []
+    }
+  }
+
+  function setGallery(next: string[]) {
+    if (!editing) return
+    setEditing({ ...editing, images: JSON.stringify(next), image: next[0] ?? editing.image ?? "" })
+  }
+
+  function addImage() {
+    const url = newImageUrl.trim()
+    if (!url) return
+    setGallery([...galleryOf(editing), url])
+    setNewImageUrl("")
+  }
+
+  function removeImage(idx: number) {
+    setGallery(galleryOf(editing).filter((_, i) => i !== idx))
+  }
+
+  function makeCover(idx: number) {
+    const imgs = galleryOf(editing)
+    if (idx <= 0 || idx >= imgs.length) return
+    const next = [...imgs]
+    const [item] = next.splice(idx, 1)
+    next.unshift(item)
+    setGallery(next)
   }
 
   async function save() {
@@ -179,8 +219,8 @@ export function ProductsPanel({
       )}
 
       <div className="mb-4 rounded-lg border border-border bg-card p-3 text-xs text-muted-foreground">
-        Edite preço, nome, imagem e descrição — as mudanças <strong>aparecem no site em alguns segundos</strong>.
-        Variantes, galeria e avaliações não são editadas aqui e ficam preservadas. Produtos{" "}
+        Edite preço, nome, fotos e descrição — as mudanças <strong>aparecem no site em alguns segundos</strong>.
+        Variantes e avaliações não são editadas aqui e ficam preservadas. Produtos{" "}
         <strong>novos</strong> só entram no site após um novo deploy.
       </div>
 
@@ -352,18 +392,75 @@ export function ProductsPanel({
 
             {/* Corpo com scroll */}
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              {imageHeader && editing[imageHeader] ? (
-                <div className="mb-4 flex justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={editing[imageHeader]}
-                    alt=""
-                    className="h-28 w-28 rounded-xl border border-border object-cover"
-                  />
+              {/* Galeria de fotos: preview em grade, deletar e trocar capa */}
+              <div className="mb-4">
+                <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
+                  Fotos do produto{galleryOf(editing).length > 0 ? ` (${galleryOf(editing).length})` : ""}
                 </div>
-              ) : null}
+                {galleryOf(editing).length > 0 && (
+                  <div className="mb-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                    {galleryOf(editing).map((url, idx) => (
+                      <div
+                        key={`${idx}-${url}`}
+                        className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt=""
+                          onClick={() => makeCover(idx)}
+                          title={idx === 0 ? "Capa atual" : "Tornar capa"}
+                          className="h-full w-full cursor-pointer object-cover"
+                        />
+                        {idx === 0 && (
+                          <span className="pointer-events-none absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase text-white">
+                            Capa
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeImage(idx)}
+                          title="Remover foto"
+                          className="absolute right-1 top-1 rounded-full bg-red-600 p-1 text-white shadow hover:bg-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={newImageUrl}
+                    onChange={(e) => setNewImageUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        addImage()
+                      }
+                    }}
+                    placeholder="Cole a URL/caminho da foto (ex: /images/produtos/foto.png)"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={addImage}
+                    className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground hover:bg-muted"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+                {galleryOf(editing).length === 0 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">Nenhuma foto ainda — cole uma URL acima.</p>
+                )}
+                {galleryOf(editing).length > 1 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Clique numa foto pra torná-la a capa. A 1ª foto é sempre a capa exibida nos cards.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {headers.map((h) => (
+                {headers.filter((h) => h !== imageHeader).map((h) => (
                   <label
                     key={h}
                     className={`text-xs font-semibold text-muted-foreground ${longFields.has(h) ? "sm:col-span-2" : ""}`}
