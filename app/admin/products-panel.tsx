@@ -11,6 +11,29 @@ const brl = (v: string | number) => {
   return `R$ ${n.toFixed(2).replace(".", ",")}`
 }
 
+// Formata um número cru ("740") como "740,00" pro campo ficar legível no
+// editor — o parseNum() em lib/catalog.ts já aceita vírgula decimal de volta.
+const formatPriceForEditing = (v: string | undefined) => {
+  const n = Number(v)
+  if (!v || !Number.isFinite(n)) return v ?? ""
+  return n.toFixed(2).replace(".", ",")
+}
+
+// Rótulos em português dos campos do editor (as chaves em si continuam em
+// inglês — são os nomes reais das propriedades de Product).
+const FIELD_LABELS: Record<string, string> = {
+  id: "ID",
+  name: "Nome",
+  price: "Preço (R$)",
+  compareAtPrice: 'Preço "De" — riscado (R$)',
+  image: "Imagem (capa)",
+  category: "Categoria",
+  slug: "Slug (URL)",
+  rating: "Avaliação (0 a 5)",
+  reviews: "Nº de avaliações",
+  description: "Descrição",
+}
+
 export function ProductsPanel({
   initialCatalog,
   columns,
@@ -93,7 +116,11 @@ export function ProductsPanel({
   }
 
   function startEdit(row: ProductRow) {
-    setEditing({ ...row })
+    setEditing({
+      ...row,
+      [columns.price]: formatPriceForEditing(row[columns.price]),
+      [columns.compareAtPrice]: formatPriceForEditing(row[columns.compareAtPrice]),
+    })
     setIsNew(false)
     setMsg(null)
     setNewImageUrl("")
@@ -463,12 +490,14 @@ export function ProductsPanel({
                 )}
               </div>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {headers.filter((h) => h !== imageHeader).map((h) => (
+                {headers.filter((h) => h !== imageHeader).map((h) => {
+                  const isPriceField = h === columns.price || h === columns.compareAtPrice
+                  return (
                   <label
                     key={h}
                     className={`text-xs font-semibold text-muted-foreground ${longFields.has(h) ? "sm:col-span-2" : ""}`}
                   >
-                    {h}
+                    {FIELD_LABELS[h] ?? h}
                     {h === idHeader && !isNew ? " (chave)" : ""}
                     {h === columns.description ? (
                       <RichTextEditor
@@ -483,21 +512,29 @@ export function ProductsPanel({
                         rows={3}
                         className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-foreground outline-none focus:ring-2 focus:ring-primary/40"
                       />
+                    ) : isPriceField ? (
+                      <div className="mt-1 flex items-center rounded-lg border border-border bg-background focus-within:ring-2 focus-within:ring-primary/40">
+                        <span className="pl-3 text-sm text-muted-foreground">R$</span>
+                        <input
+                          value={editing[h] ?? ""}
+                          onChange={(e) => setEditing({ ...editing, [h]: e.target.value })}
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          className="w-full bg-transparent px-2 py-2 text-sm font-normal text-foreground outline-none"
+                        />
+                      </div>
                     ) : (
                       <input
                         value={editing[h] ?? ""}
                         onChange={(e) => setEditing({ ...editing, [h]: e.target.value })}
                         disabled={h === idHeader && !isNew}
-                        inputMode={
-                          [columns.price, columns.compareAtPrice, columns.rating, columns.reviews].includes(h)
-                            ? "decimal"
-                            : undefined
-                        }
+                        inputMode={[columns.rating, columns.reviews].includes(h) ? "decimal" : undefined}
                         className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-foreground outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
                       />
                     )}
                   </label>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
