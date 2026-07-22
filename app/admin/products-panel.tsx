@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Download, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Download, ExternalLink, Pencil, Plus, Trash2, X } from "lucide-react"
 import type { Catalog, ProductRow } from "@/lib/catalog"
 import { RichTextEditor } from "./rich-text-editor"
 
@@ -331,7 +331,17 @@ export function ProductsPanel({
                       )}
                     </div>
                   </div>
-                  <div className="mt-2 flex justify-end gap-2 border-t border-border/60 pt-2">
+                  <div className="mt-2 flex flex-wrap justify-end gap-2 border-t border-border/60 pt-2">
+                    {row[columns.slug] && (
+                      <a
+                        href={`/product/${row[columns.slug]}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" /> Ver na loja
+                      </a>
+                    )}
                     <button
                       onClick={() => startEdit(row)}
                       disabled={!kvOk}
@@ -386,6 +396,17 @@ export function ProductsPanel({
                       ))}
                       <td className="px-4 py-2">
                         <div className="flex justify-end gap-1">
+                          {row[columns.slug] && (
+                            <a
+                              href={`/product/${row[columns.slug]}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Ver na loja"
+                              className="rounded-lg border border-border p-1.5 text-muted-foreground hover:bg-muted"
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
                           <button
                             onClick={() => startEdit(row)}
                             disabled={!kvOk}
