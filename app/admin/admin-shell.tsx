@@ -73,7 +73,7 @@ export function AdminShell({
         {gatewaySwitch}
 
         {tabs.length > 1 && (
-          <div className="mb-5 flex w-full rounded-xl border border-border bg-card p-1 sm:inline-flex sm:w-auto">
+          <div className="scrollbar-hide mb-5 flex w-full overflow-x-auto rounded-xl border border-border bg-card p-1 sm:inline-flex sm:w-auto">
             {modules.orders && (
               <TabButton active={tab === "orders"} onClick={() => setTab("orders")} icon={<ShoppingBag className="h-4 w-4" />}>
                 Pedidos
@@ -124,7 +124,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold transition-colors sm:flex-none ${
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-bold transition-colors ${
         active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
       }`}
     >
