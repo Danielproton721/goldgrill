@@ -61,13 +61,13 @@ export function Footer() {
       {/* Sessão 2 — Dados Fiscais */}
       <FooterAccordion title="EMPRESA">
         <p className="text-sm text-[#737373] leading-relaxed">
-          Marca operada por C ALVES FRANCA LTDA
+          Marca operada por NOVA ERA COMERCIAL LTDA
         </p>
         <p className="text-sm text-[#737373]">
-          <span className="font-medium text-[#1a1a1a]">CNPJ:</span> 64.846.844/0001-30
+          <span className="font-medium text-[#1a1a1a]">CNPJ:</span> 66.889.994/0001-57
         </p>
         <p className="text-sm text-[#737373]">
-          <span className="font-medium text-[#1a1a1a]">Endereço:</span> Rua Eduardo Gomes, 428 — Jardim Tropical — Capitão Poço, PA — CEP 68.650-000
+          <span className="font-medium text-[#1a1a1a]">Endereço:</span> Rua Santa Cruz, 2187 — Caixa Postal 11433, Sala 09 — Vila Mariana — São Paulo/SP — CEP 04.121-002
         </p>
       </FooterAccordion>
 
@@ -86,11 +86,11 @@ export function Footer() {
           Contato e Catálogo
         </Link>
         <a
-          href="mailto:suporte@goldgrill.com.br"
+          href="mailto:atentimentos-pedidos@goldgrill.shop"
           className="text-sm text-[#737373] hover:text-[#1a1a1a] transition-colors inline-flex items-center gap-2"
         >
           <Mail size={14} />
-          suporte@goldgrill.com.br
+          atentimentos-pedidos@goldgrill.shop
         </a>
       </FooterAccordion>
 

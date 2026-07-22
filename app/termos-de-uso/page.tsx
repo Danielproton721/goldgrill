@@ -27,8 +27,8 @@ export default function TermosDeUsoPage() {
             <h2 className="text-base font-bold text-[#1a1a1a]">1. Identificação</h2>
             <p className="mt-2">
               Este site é operado pela marca <strong>Gold Grill</strong>, de titularidade de{" "}
-              <strong>C ALVES FRANCA LTDA</strong>, inscrita no CNPJ{" "}
-              <strong>64.846.844/0001-30</strong>, com sede em Capitão Poço — Pará — Brasil.
+              <strong>NOVA ERA COMERCIAL LTDA</strong>, inscrita no CNPJ{" "}
+              <strong>66.889.994/0001-57</strong>, com sede em São Paulo — SP — Brasil.
             </p>
             <p className="mt-2">
               Ao acessar e utilizar este site, você declara ter lido, entendido e concordado integralmente com estes Termos de Uso.
@@ -81,8 +81,8 @@ export default function TermosDeUsoPage() {
             <h2 className="text-base font-bold text-[#1a1a1a]">8. Trocas e Devoluções</h2>
             <p className="mt-2">
               Aceitamos trocas em caso de produto com defeito de fabricação, divergência com o produto anunciado ou avaria no transporte. O prazo para comunicar a solicitação é de até 30 dias após o recebimento. Para iniciar o processo, entre em contato pelo e-mail{" "}
-              <a href="mailto:suporte@goldgrill.com.br" className="text-[#b98a2e] underline">
-                suporte@goldgrill.com.br
+              <a href="mailto:atentimentos-pedidos@goldgrill.shop" className="text-[#b98a2e] underline">
+                atentimentos-pedidos@goldgrill.shop
               </a>.
             </p>
           </div>
@@ -90,7 +90,7 @@ export default function TermosDeUsoPage() {
           <div>
             <h2 className="text-base font-bold text-[#1a1a1a]">9. Propriedade Intelectual</h2>
             <p className="mt-2">
-              Todo o conteúdo do site — textos, imagens, logotipos, identidade visual e código-fonte — é propriedade exclusiva da Gold Grill / C ALVES FRANCA LTDA. É proibida qualquer reprodução, distribuição ou uso comercial sem autorização prévia e por escrito.
+              Todo o conteúdo do site — textos, imagens, logotipos, identidade visual e código-fonte — é propriedade exclusiva da Gold Grill / NOVA ERA COMERCIAL LTDA. É proibida qualquer reprodução, distribuição ou uso comercial sem autorização prévia e por escrito.
             </p>
           </div>
 
@@ -104,7 +104,7 @@ export default function TermosDeUsoPage() {
           <div>
             <h2 className="text-base font-bold text-[#1a1a1a]">11. Legislação Aplicável e Foro</h2>
             <p className="mt-2">
-              Estes Termos de Uso são regidos pelas leis brasileiras, em especial o Código de Defesa do Consumidor (Lei 8.078/1990), o Marco Civil da Internet (Lei 12.965/2014) e a Lei Geral de Proteção de Dados (Lei 13.709/2018). Fica eleito o foro da Comarca de Capitão Poço — PA para dirimir eventuais controvérsias.
+              Estes Termos de Uso são regidos pelas leis brasileiras, em especial o Código de Defesa do Consumidor (Lei 8.078/1990), o Marco Civil da Internet (Lei 12.965/2014) e a Lei Geral de Proteção de Dados (Lei 13.709/2018). Fica eleito o foro da Comarca de São Paulo — SP para dirimir eventuais controvérsias.
             </p>
           </div>
 
@@ -112,20 +112,20 @@ export default function TermosDeUsoPage() {
             <h2 className="text-base font-bold text-[#1a1a1a]">12. Contato</h2>
             <p className="mt-2">
               Dúvidas sobre estes Termos de Uso? Entre em contato conosco:{" "}
-              <a href="mailto:suporte@goldgrill.com.br" className="text-[#b98a2e] underline">
-                suporte@goldgrill.com.br
+              <a href="mailto:atentimentos-pedidos@goldgrill.shop" className="text-[#b98a2e] underline">
+                atentimentos-pedidos@goldgrill.shop
               </a>
             </p>
           </div>
 
           <div className="rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-4">
             <p className="text-xs text-[#737373]">
-              <strong className="text-[#1a1a1a]">Razão Social:</strong> C ALVES FRANCA LTDA<br />
-              <strong className="text-[#1a1a1a]">CNPJ:</strong> 64.846.844/0001-30<br />
-              <strong className="text-[#1a1a1a]">Sede:</strong> Capitão Poço — Pará — Brasil<br />
+              <strong className="text-[#1a1a1a]">Razão Social:</strong> NOVA ERA COMERCIAL LTDA<br />
+              <strong className="text-[#1a1a1a]">CNPJ:</strong> 66.889.994/0001-57<br />
+              <strong className="text-[#1a1a1a]">Sede:</strong> Rua Santa Cruz, 2187 — Caixa Postal 11433, Sala 09 — Vila Mariana — São Paulo/SP — CEP 04.121-002<br />
               <strong className="text-[#1a1a1a]">E-mail:</strong>{" "}
-              <a href="mailto:suporte@goldgrill.com.br" className="text-[#b98a2e] underline">
-                suporte@goldgrill.com.br
+              <a href="mailto:atentimentos-pedidos@goldgrill.shop" className="text-[#b98a2e] underline">
+                atentimentos-pedidos@goldgrill.shop
               </a>
             </p>
           </div>

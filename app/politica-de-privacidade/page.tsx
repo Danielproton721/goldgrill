@@ -27,13 +27,13 @@ export default function PoliticaDePrivacidadePage() {
             <h2 className="text-base font-bold text-[#1a1a1a]">1. Identificação do Controlador</h2>
             <p className="mt-2">
               Esta Política de Privacidade é aplicada pela marca <strong>Gold Grill</strong>, operada por{" "}
-              <strong>C ALVES FRANCA LTDA</strong>, inscrita no CNPJ{" "}
-              <strong>64.846.844/0001-30</strong>, com sede em Capitão Poço — Pará — Brasil.
+              <strong>NOVA ERA COMERCIAL LTDA</strong>, inscrita no CNPJ{" "}
+              <strong>66.889.994/0001-57</strong>, com sede em São Paulo — SP — Brasil.
             </p>
             <p className="mt-2">
               Contato do encarregado de dados (DPO):{" "}
-              <a href="mailto:suporte@goldgrill.com.br" className="text-[#b98a2e] underline">
-                suporte@goldgrill.com.br
+              <a href="mailto:atentimentos-pedidos@goldgrill.shop" className="text-[#b98a2e] underline">
+                atentimentos-pedidos@goldgrill.shop
               </a>
             </p>
           </div>
@@ -107,8 +107,8 @@ export default function PoliticaDePrivacidadePage() {
             </ul>
             <p className="mt-2">
               Para exercer qualquer um desses direitos, entre em contato pelo e-mail{" "}
-              <a href="mailto:suporte@goldgrill.com.br" className="text-[#b98a2e] underline">
-                suporte@goldgrill.com.br
+              <a href="mailto:atentimentos-pedidos@goldgrill.shop" className="text-[#b98a2e] underline">
+                atentimentos-pedidos@goldgrill.shop
               </a>.
             </p>
           </div>
@@ -130,9 +130,9 @@ export default function PoliticaDePrivacidadePage() {
           <div className="rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-4">
             <p className="text-xs text-[#737373]">
               <strong className="text-[#1a1a1a]">Responsável pelo tratamento de dados:</strong><br />
-              C ALVES FRANCA LTDA — CNPJ 64.846.844/0001-30<br />
-              Capitão Poço — Pará — Brasil<br />
-              suporte@goldgrill.com.br
+              NOVA ERA COMERCIAL LTDA — CNPJ 66.889.994/0001-57<br />
+              Rua Santa Cruz, 2187 — Caixa Postal 11433, Sala 09 — Vila Mariana — São Paulo/SP — CEP 04.121-002<br />
+              atentimentos-pedidos@goldgrill.shop
             </p>
           </div>
 
