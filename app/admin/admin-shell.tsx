@@ -20,6 +20,7 @@ export function AdminShell({
   modules,
   columns,
   kvOk,
+  blobOk,
   orders,
   catalog,
   pending,
@@ -29,6 +30,7 @@ export function AdminShell({
   modules: Modules
   columns: Record<string, string>
   kvOk: boolean
+  blobOk: boolean
   orders: AdminOrder[]
   catalog: Catalog
   pending: number
@@ -93,7 +95,7 @@ export function AdminShell({
 
         {tab === "orders" && modules.orders && <OrdersPanel orders={orders} kvOk={kvOk} />}
         {tab === "products" && modules.products && (
-          <ProductsPanel initialCatalog={catalog} columns={columns} kvOk={kvOk} initialPending={pending} />
+          <ProductsPanel initialCatalog={catalog} columns={columns} kvOk={kvOk} blobOk={blobOk} initialPending={pending} />
         )}
         {tab === "relay" && modules.relay && <RelayPanel />}
         {tab === "keys" && <SetupStatus />}

@@ -28,6 +28,7 @@ export default async function AdminPage() {
   }
 
   const kvOk = kvConfigured()
+  const blobOk = Boolean(process.env.BLOB_READ_WRITE_TOKEN)
   const orders = adminConfig.modules.orders ? await listRecentOrders(100) : []
   const catalog = adminConfig.modules.products ? await getMergedCatalog() : { headers: [], rows: [] }
   const pending = adminConfig.modules.products && kvOk ? await pendingChangesCount() : 0
@@ -39,6 +40,7 @@ export default async function AdminPage() {
       modules={adminConfig.modules}
       columns={adminConfig.catalog.columns}
       kvOk={kvOk}
+      blobOk={blobOk}
       orders={orders}
       catalog={catalog}
       pending={pending}

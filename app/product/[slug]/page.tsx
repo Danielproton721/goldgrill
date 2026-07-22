@@ -5,6 +5,7 @@ import { ProductPage } from "@/components/store/product-page"
 import { PageTransition } from "@/components/store/page-transition"
 import { getProductBySlug, getProductsByCategory, getVariantSiblings, getSizeSiblings, products } from "@/lib/products"
 import { applyOverlay, applyOverlayOne } from "@/lib/catalog-runtime"
+import { stripHtmlToText } from "@/lib/rich-text"
 import type { Metadata } from "next"
 
 interface PageProps {
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   return {
     title: `${product.name} | Gold Grill`,
-    description: product.description,
+    description: stripHtmlToText(product.description).slice(0, 160),
   }
 }
 

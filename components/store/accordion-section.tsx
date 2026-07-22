@@ -6,6 +6,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { RichDescription } from "./rich-description"
 
 interface AccordionSectionProps {
   hairTypes?: string[]
@@ -31,7 +32,9 @@ export function AccordionSection({
       {/* Description always visible first */}
       <div className="border-b border-[#f0f0f0] py-4">
         <h3 className="text-sm font-semibold text-[#1a1a1a] mb-2">Descrição do Produto</h3>
-        <p className="text-sm text-[#737373] leading-relaxed">{description}</p>
+        <div className="text-sm text-[#737373] leading-relaxed">
+          <RichDescription html={description} />
+        </div>
       </div>
 
       <Accordion type="single" collapsible className="w-full hidden md:block">

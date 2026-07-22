@@ -13,6 +13,8 @@ import { RelatedProducts } from "./related-products"
 import { ReviewsSection } from "./reviews-section"
 import { VariantSelector } from "./variant-selector"
 import { reviewPhotos } from "@/lib/review-photos"
+import { stripHtmlToText } from "@/lib/rich-text"
+import { RichDescription } from "./rich-description"
 // Import só de TIPOS de lib/products (apagado no build). Os siblings chegam
 // por props, calculados no server — importar as funções aqui arrastaria o
 // catálogo inteiro (~345KB) pro bundle client da PDP.
@@ -252,7 +254,7 @@ function buildProductCharacteristics(
   productColor: string | null
 ): ProductCharacteristic[] {
   const sourceText = compactText(
-    [product.name, product.description, ...(product.tags ?? [])].filter(Boolean).join(" ")
+    [product.name, stripHtmlToText(product.description), ...(product.tags ?? [])].filter(Boolean).join(" ")
   )
 
   return [
@@ -693,7 +695,7 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
                   <span className="text-2xl font-light text-[#737373]">−</span>
                 </div>
                 <div className="text-sm text-[#737373] leading-relaxed">
-                  <p>{product.description}</p>
+                  <RichDescription html={product.description} />
                 </div>
               </div>
             </div>

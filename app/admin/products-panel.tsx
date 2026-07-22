@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Download, Pencil, Plus, Trash2, X } from "lucide-react"
 import type { Catalog, ProductRow } from "@/lib/catalog"
+import { RichTextEditor } from "./rich-text-editor"
 
 const brl = (v: string | number) => {
   const n = Number(v)
@@ -14,11 +15,13 @@ export function ProductsPanel({
   initialCatalog,
   columns,
   kvOk,
+  blobOk,
   initialPending,
 }: {
   initialCatalog: Catalog
   columns: Record<string, string>
   kvOk: boolean
+  blobOk: boolean
   initialPending: number
 }) {
   const [catalog, setCatalog] = useState<Catalog>(initialCatalog)
@@ -467,7 +470,13 @@ export function ProductsPanel({
                   >
                     {h}
                     {h === idHeader && !isNew ? " (chave)" : ""}
-                    {longFields.has(h) ? (
+                    {h === columns.description ? (
+                      <RichTextEditor
+                        value={editing[h] ?? ""}
+                        onChange={(html) => setEditing({ ...editing, [h]: html })}
+                        blobOk={blobOk}
+                      />
+                    ) : longFields.has(h) ? (
                       <textarea
                         value={editing[h] ?? ""}
                         onChange={(e) => setEditing({ ...editing, [h]: e.target.value })}
