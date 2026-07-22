@@ -162,6 +162,28 @@ export function ProductsPanel({
     setGallery(next)
   }
 
+  // Baixa a foto pro PC. Busca o arquivo (funciona pra fotos locais e de
+  // origens com CORS liberado, como Vercel Blob) e força o download via blob;
+  // se a origem bloquear o fetch, abre a imagem numa aba nova como fallback.
+  async function downloadImage(url: string, idx: number) {
+    const fallbackName = url.split("/").pop()?.split("?")[0] || `foto-${idx + 1}.jpg`
+    try {
+      const res = await fetch(url)
+      if (!res.ok) throw new Error("fetch falhou")
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = objectUrl
+      a.download = fallbackName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch {
+      window.open(url, "_blank")
+    }
+  }
+
   async function save() {
     if (!editing) return
     if (!(editing[idHeader] ?? "").trim()) {
@@ -454,6 +476,14 @@ export function ProductsPanel({
                           className="absolute right-1 top-1 rounded-full bg-red-600 p-1 text-white shadow hover:bg-red-700"
                         >
                           <X className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadImage(url, idx)}
+                          title="Baixar foto pro PC"
+                          className="absolute bottom-1 right-1 rounded-full bg-black/70 p-1 text-white shadow hover:bg-black/90"
+                        >
+                          <Download className="h-3 w-3" />
                         </button>
                       </div>
                     ))}
