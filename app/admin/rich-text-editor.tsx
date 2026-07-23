@@ -4,6 +4,7 @@ import { useRef, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Placeholder from "@tiptap/extension-placeholder"
+import TextAlign from "@tiptap/extension-text-align"
 import { ResizableImage } from "./tiptap-resizable-image"
 import { upload } from "@vercel/blob/client"
 import {
@@ -14,6 +15,9 @@ import {
   Heading3,
   List,
   ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
   Link as LinkIcon,
   Image as ImageIcon,
   Video as VideoIcon,
@@ -73,6 +77,7 @@ export function RichTextEditor({
         link: { openOnClick: false, autolink: true },
       }),
       ResizableImage,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
       Video,
       Placeholder.configure({ placeholder: "Escreva a descrição do produto…" }),
     ],
@@ -167,6 +172,29 @@ export function RichTextEditor({
         >
           <ListOrdered className="h-3.5 w-3.5" />
         </ToolbarButton>
+        <span className="mx-1 h-4 w-px bg-border" />
+        <ToolbarButton
+          title="Alinhar à esquerda"
+          active={editor.isActive({ textAlign: "left" })}
+          onClick={() => editor.chain().focus().setTextAlign("left").run()}
+        >
+          <AlignLeft className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Centralizar"
+          active={editor.isActive({ textAlign: "center" })}
+          onClick={() => editor.chain().focus().setTextAlign("center").run()}
+        >
+          <AlignCenter className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <ToolbarButton
+          title="Alinhar à direita"
+          active={editor.isActive({ textAlign: "right" })}
+          onClick={() => editor.chain().focus().setTextAlign("right").run()}
+        >
+          <AlignRight className="h-3.5 w-3.5" />
+        </ToolbarButton>
+        <span className="mx-1 h-4 w-px bg-border" />
         <ToolbarButton
           title="Link"
           active={editor.isActive("link")}

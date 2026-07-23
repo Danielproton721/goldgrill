@@ -39,7 +39,13 @@ export function sanitizeDescriptionHtml(html: string): string {
       a: ["href", "target", "rel"],
       img: ["src", "alt", "class"],
       video: ["src", "controls", "class"],
-      "*": ["class"],
+      "*": ["class", "style"],
+    },
+    // `style` só é liberado pro alinhamento de texto (o botão de centralizar no
+    // editor). A allowlist de valores impede qualquer outra propriedade — sem
+    // ela, um style solto seria vetor de XSS (ex.: background:url(javascript:…)).
+    allowedStyles: {
+      "*": { "text-align": [/^left$/, /^right$/, /^center$/, /^justify$/] },
     },
     allowedSchemes: ["http", "https", "mailto"],
   })
