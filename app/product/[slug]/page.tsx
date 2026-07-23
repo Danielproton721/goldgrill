@@ -5,6 +5,7 @@ import { ProductPage } from "@/components/store/product-page"
 import { PageTransition } from "@/components/store/page-transition"
 import { getProductBySlug, getProductsByCategory, getVariantSiblings, getSizeSiblings, products } from "@/lib/products"
 import { applyOverlay, applyOverlayOne } from "@/lib/catalog-runtime"
+import { getObjections } from "@/lib/objections"
 import { stripHtmlToText } from "@/lib/rich-text"
 import type { Metadata } from "next"
 
@@ -48,6 +49,9 @@ export default async function ProductDetailPage({ params }: PageProps) {
     .filter((p) => p.id !== product.id)
     .slice(0, 4)
 
+  // Gavetas de objeção: conteúdo global, igual em todos os produtos.
+  const objections = await getObjections()
+
   return (
     <main className="min-h-screen bg-[#ffffff]">
       <Header />
@@ -61,6 +65,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
           relatedProducts={relatedProducts}
           variantSiblings={getVariantSiblings(slug)}
           sizeSiblings={getSizeSiblings(slug)}
+          objections={objections}
         />
       </PageTransition>
 

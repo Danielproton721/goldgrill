@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Package, ShoppingBag, Waypoints, KeyRound, Mail } from "lucide-react"
+import { Package, ShoppingBag, Waypoints, KeyRound, Mail, MessageCircleQuestion } from "lucide-react"
 import type { AdminOrder } from "@/lib/orders"
 import type { Catalog } from "@/lib/catalog"
 import { LogoutButton } from "./logout-button"
@@ -12,9 +12,10 @@ import { ProductsPanel } from "./products-panel"
 import { RelayPanel } from "./relay-panel"
 import { SetupStatus } from "./setup-status"
 import { EmailDiagPanel } from "./email-diag-panel"
+import { ObjectionsPanel } from "./objections-panel"
 
 type Modules = { orders: boolean; products: boolean; relay?: boolean }
-type Tab = "orders" | "products" | "relay" | "email" | "keys"
+type Tab = "orders" | "products" | "objections" | "relay" | "email" | "keys"
 
 export function AdminShell({
   brand,
@@ -40,6 +41,7 @@ export function AdminShell({
   const tabs = [
     modules.orders ? ("orders" as const) : null,
     modules.products ? ("products" as const) : null,
+    "objections" as const,
     modules.relay ? ("relay" as const) : null,
     "email" as const,
     "keys" as const,
@@ -84,6 +86,13 @@ export function AdminShell({
                 Produtos
               </TabButton>
             )}
+            <TabButton
+              active={tab === "objections"}
+              onClick={() => setTab("objections")}
+              icon={<MessageCircleQuestion className="h-4 w-4" />}
+            >
+              Objeções
+            </TabButton>
             {modules.relay && (
               <TabButton active={tab === "relay"} onClick={() => setTab("relay")} icon={<Waypoints className="h-4 w-4" />}>
                 Relay
@@ -102,6 +111,7 @@ export function AdminShell({
         {tab === "products" && modules.products && (
           <ProductsPanel initialCatalog={catalog} columns={columns} kvOk={kvOk} blobOk={blobOk} initialPending={pending} />
         )}
+        {tab === "objections" && <ObjectionsPanel kvOk={kvOk} />}
         {tab === "relay" && modules.relay && <RelayPanel />}
         {tab === "email" && <EmailDiagPanel />}
         {tab === "keys" && <SetupStatus />}

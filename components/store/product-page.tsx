@@ -15,6 +15,8 @@ import { VariantSelector } from "./variant-selector"
 import { reviewPhotos } from "@/lib/review-photos"
 import { stripHtmlToText } from "@/lib/rich-text"
 import { RichDescription } from "./rich-description"
+import { ObjectionsSection } from "./objections-section"
+import type { Objection } from "@/lib/objections-shared"
 // Import só de TIPOS de lib/products (apagado no build). Os siblings chegam
 // por props, calculados no server — importar as funções aqui arrastaria o
 // catálogo inteiro (~345KB) pro bundle client da PDP.
@@ -273,9 +275,10 @@ interface ProductPageProps {
   relatedProducts: Product[]
   variantSiblings?: VariantSibling[]
   sizeSiblings?: SizeSibling[]
+  objections?: Objection[]
 }
 
-export function ProductPage({ product, relatedProducts, variantSiblings = [], sizeSiblings = [] }: ProductPageProps) {
+export function ProductPage({ product, relatedProducts, variantSiblings = [], sizeSiblings = [], objections = [] }: ProductPageProps) {
   const shouldReduceMotion = useReducedMotion()
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
@@ -714,6 +717,11 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
             </div>
           </div>
         </div>
+
+        {/* Quebra de objeções: conteúdo global (mesmo em todos os produtos),
+            editado na aba "Objeções" do painel admin. */}
+        <div className="h-2 bg-[#f5f5f5] md:hidden" />
+        <ObjectionsSection items={objections} />
 
         <div className="md:mt-16">
           <div className="h-2 bg-[#f5f5f5] md:hidden" />
