@@ -1,6 +1,10 @@
-// Qual gateway de pagamento está ativo agora (escolhido no /admin).
-// Guardado no KV (Upstash) pra valer pra todos na hora, sem novo deploy.
-// Sem KV configurado, cai no padrão (Pagou.ai) — o fluxo atual nunca quebra.
+// Quais gateways de pagamento estão ligados e em que ordem de prioridade
+// (configurado no /admin). Guardado no KV (Upstash) pra valer pra todos na hora,
+// sem novo deploy. Sem KV configurado, cai no padrão (Pagou.ai) — o fluxo atual
+// nunca quebra.
+//
+// A loja tenta o 1º gateway ligado da fila; se ele estiver fora (chave inválida,
+// adquirente caído, timeout), passa pro próximo automaticamente.
 
 import { kvConfigured, kvGetJSON, kvSetJSON } from "@/lib/kv-store"
 
@@ -12,27 +16,103 @@ export const GATEWAYS: { id: GatewayId; label: string }[] = [
   { id: "centurion", label: "CenturionPay" },
 ]
 
-const KEY = "active-gateway"
+export type GatewayConfig = {
+  /** Ordem de prioridade: o primeiro LIGADO é quem processa. */
+  order: GatewayId[]
+  enabled: Record<GatewayId, boolean>
+}
+
+const CONFIG_KEY = "gateway-config"
+const LEGACY_KEY = "active-gateway"
 const DEFAULT: GatewayId = "pagou"
-// ~1 ano: na prática permanente; só muda quando o admin troca.
+// ~1 ano: na prática permanente; só muda quando o admin mexe.
 const TTL = 60 * 60 * 24 * 365
 
 export function isGatewayId(v: unknown): v is GatewayId {
   return v === "pagou" || v === "medusa" || v === "centurion"
 }
 
-export async function getActiveGateway(): Promise<GatewayId> {
-  if (!kvConfigured()) return DEFAULT
-  try {
-    const v = await kvGetJSON<GatewayId>(KEY)
-    return isGatewayId(v) ? v : DEFAULT
-  } catch {
-    return DEFAULT
+// Chave presente no ambiente. Lê process.env direto (em vez de importar os
+// providers) porque este módulo é referenciado por componente de client — só
+// como tipo, mas assim não há chance de puxar `node:crypto` pro bundle.
+export function gatewayConfigured(id: GatewayId): boolean {
+  if (id === "pagou") return Boolean(process.env.PAGOUAI_SECRET_KEY)
+  if (id === "medusa") return Boolean(process.env.MEDUSAPAY_SECRET_KEY || process.env.MEDUSAPAY_API_KEY)
+  return Boolean(process.env.CENTURION_API_KEY)
+}
+
+function defaultConfig(active: GatewayId = DEFAULT): GatewayConfig {
+  const order = [active, ...GATEWAYS.map((g) => g.id).filter((id) => id !== active)]
+  // Só o ativo nasce ligado: ligar os outros sozinho mandaria tráfego pra
+  // gateway que o dono nunca revisou. Quem liga é o admin, no painel.
+  return {
+    order,
+    enabled: { pagou: false, medusa: false, centurion: false, [active]: true } as Record<GatewayId, boolean>,
   }
 }
 
+function sanitize(raw: any, fallbackActive: GatewayId = DEFAULT): GatewayConfig {
+  const base = defaultConfig(fallbackActive)
+  if (!raw || typeof raw !== "object") return base
+
+  // Ordem: só ids válidos, sem repetição, completada com os que faltarem.
+  const seen = new Set<GatewayId>()
+  const order: GatewayId[] = []
+  for (const id of Array.isArray(raw.order) ? raw.order : []) {
+    if (isGatewayId(id) && !seen.has(id)) {
+      seen.add(id)
+      order.push(id)
+    }
+  }
+  for (const g of GATEWAYS) if (!seen.has(g.id)) order.push(g.id)
+
+  const enabled = { pagou: false, medusa: false, centurion: false } as Record<GatewayId, boolean>
+  for (const g of GATEWAYS) enabled[g.id] = Boolean(raw?.enabled?.[g.id])
+  // Nunca deixa a loja sem nenhum gateway: sem ninguém ligado, volta o padrão.
+  if (!GATEWAYS.some((g) => enabled[g.id])) return base
+
+  return { order, enabled }
+}
+
+export async function getGatewayConfig(): Promise<GatewayConfig> {
+  if (!kvConfigured()) return defaultConfig()
+  try {
+    const raw = await kvGetJSON<GatewayConfig>(CONFIG_KEY)
+    if (raw) return sanitize(raw)
+    // Migração da chave antiga (só o gateway ativo, sem fila de fallback).
+    const legacy = await kvGetJSON<GatewayId>(LEGACY_KEY)
+    return defaultConfig(isGatewayId(legacy) ? legacy : DEFAULT)
+  } catch {
+    return defaultConfig()
+  }
+}
+
+export async function setGatewayConfig(raw: unknown): Promise<GatewayConfig> {
+  const cfg = sanitize(raw)
+  await kvSetJSON(CONFIG_KEY, cfg, TTL)
+  // Mantém a chave antiga em dia (nada mais lê, mas evita surpresa num rollback).
+  await kvSetJSON(LEGACY_KEY, cfg.order.find((id) => cfg.enabled[id]) ?? DEFAULT, TTL).catch(() => {})
+  return cfg
+}
+
+/** Fila de tentativa: ligados, na ordem de prioridade. */
+export async function getGatewayChain(): Promise<GatewayId[]> {
+  const cfg = await getGatewayConfig()
+  const chain = cfg.order.filter((id) => cfg.enabled[id])
+  return chain.length ? chain : [DEFAULT]
+}
+
+/** Quem processa agora — o 1º da fila. Mantido pro resto do código não mudar. */
+export async function getActiveGateway(): Promise<GatewayId> {
+  const chain = await getGatewayChain()
+  return chain[0] ?? DEFAULT
+}
+
+/** Promove um gateway a principal (liga e joga pro topo da fila). */
 export async function setActiveGateway(id: GatewayId): Promise<void> {
-  await kvSetJSON(KEY, id, TTL)
+  const cfg = await getGatewayConfig()
+  const order = [id, ...cfg.order.filter((g) => g !== id)]
+  await setGatewayConfig({ order, enabled: { ...cfg.enabled, [id]: true } })
 }
 
 // Qual gateway criou uma transação específica (txid) — pra consultar status /

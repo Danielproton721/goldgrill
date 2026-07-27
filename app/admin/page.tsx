@@ -2,7 +2,7 @@ import { adminConfig } from "@/admin.config"
 import { adminConfigured, isAuthed } from "@/lib/admin-auth"
 import { kvConfigured, listRecentOrders } from "@/lib/orders"
 import { getMergedCatalog, pendingChangesCount } from "@/lib/catalog"
-import { getActiveGateway } from "@/lib/gateways/active"
+import { GATEWAYS, gatewayConfigured, getGatewayConfig, type GatewayId } from "@/lib/gateways/active"
 import { AdminLogin } from "./admin-login"
 import { AdminShell } from "./admin-shell"
 import { GatewaySwitch } from "./gateway-switch"
@@ -32,7 +32,11 @@ export default async function AdminPage() {
   const orders = adminConfig.modules.orders ? await listRecentOrders(100) : []
   const catalog = adminConfig.modules.products ? await getMergedCatalog() : { headers: [], rows: [] }
   const pending = adminConfig.modules.products && kvOk ? await pendingChangesCount() : 0
-  const activeGateway = await getActiveGateway()
+  const gatewayConfig = await getGatewayConfig()
+  const gatewayConfigured_ = Object.fromEntries(
+    GATEWAYS.map((g) => [g.id, gatewayConfigured(g.id)])
+  ) as Record<GatewayId, boolean>
+  const gatewayLabels = Object.fromEntries(GATEWAYS.map((g) => [g.id, g.label])) as Record<GatewayId, string>
 
   return (
     <AdminShell
@@ -44,7 +48,14 @@ export default async function AdminPage() {
       orders={orders}
       catalog={catalog}
       pending={pending}
-      gatewaySwitch={<GatewaySwitch initial={activeGateway} kvOk={kvOk} />}
+      gatewaySwitch={
+        <GatewaySwitch
+          initial={gatewayConfig}
+          configured={gatewayConfigured_}
+          labels={gatewayLabels}
+          kvOk={kvOk}
+        />
+      }
     />
   )
 }

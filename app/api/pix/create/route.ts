@@ -10,9 +10,10 @@ import { buildOrderCode } from "@/lib/order-code";
 import { saveOrder } from "@/lib/order-store";
 import { indexOrder } from "@/lib/orders";
 import type { OrderEmailItem } from "@/lib/order-email";
-import { getActiveGateway, markTxGateway } from "@/lib/gateways/active";
-import { createPixMedusa, medusaConfigured } from "@/lib/gateways/medusa";
-import { createPixCenturion, centurionConfigured } from "@/lib/gateways/centurion";
+import type { GatewayId } from "@/lib/gateways/active";
+import { gatewayConfigured, getGatewayChain, markTxGateway } from "@/lib/gateways/active";
+import { createPixMedusa } from "@/lib/gateways/medusa";
+import { createPixCenturion } from "@/lib/gateways/centurion";
 import { qstashConfigured, scheduleDelayedCall, abandonedSig } from "@/lib/qstash";
 
 export const dynamic = "force-dynamic";
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body;
+  let body: any;
   try {
     body = await request.json();
   } catch {
@@ -174,18 +175,23 @@ export async function POST(request: Request) {
     /^172\.(1[6-9]|2\d|3[01])\./.test(v);
   const buyerIp = isPrivateIp(ip) ? "177.71.248.55" : ip;
 
-  // ── Multi-gateway: se o admin escolheu Medusa/Centurion, despacha pra lá.
-  // O caminho Pagou.ai (default) segue idêntico abaixo, com o relay dele. ──
-  const activeGateway = await getActiveGateway();
+  // ── Multi-gateway com fallback: tenta os gateways LIGADOS na ordem de
+  // prioridade definida no /admin. Se um estiver fora (chave inválida,
+  // adquirente caído, timeout), passa pro próximo sozinho. Erro de dado do
+  // comprador (400) não tenta outro — trocar de gateway não conserta CPF. ──
+  const chain = await getGatewayChain();
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
   // O relay é EXCLUSIVO da Pagou.ai (o notify_url dela usa getPublicNotifyUrl,
   // que lê NOTIFY_URL_OVERRIDE). Medusa e Centurion batem direto no domínio.
 
-  if (activeGateway === "medusa") {
-    if (!medusaConfigured()) {
-      console.error("[PIX API] MEDUSAPAY_SECRET_KEY ausente no ambiente.");
-      return NextResponse.json({ error: "Erro interno: MedusaPay não configurada." }, { status: 500 });
-    }
+  // "ok" → resposta pronta; "fatal" → devolve sem tentar outro gateway;
+  // "retry" → gateway fora do ar, tenta o próximo da fila.
+  type Attempt =
+    | { outcome: "ok"; json: Record<string, unknown> }
+    | { outcome: "fatal"; response: NextResponse }
+    | { outcome: "retry"; reason: string };
+
+  async function attemptMedusa(): Promise<Attempt> {
     // Na API v2 o webhook é cadastrado no painel da Medusa (Configurações → API
     // e Integrações → Webhook) apontando para {dominio}/api/webhooks/medusa —
     // não existe mais postbackUrl no corpo da cobrança.
@@ -200,27 +206,21 @@ export async function POST(request: Request) {
     });
     if (!result.ok) {
       console.error(`[PIX/Medusa] Erro (${result.status}/${result.code ?? "-"}):`, result.error);
-      if (result.status === 401) {
-        return NextResponse.json({ error: "Chave de autenticação inválida na MedusaPay." }, { status: 401 });
+      if (result.status === 400) {
+        return {
+          outcome: "fatal",
+          response: NextResponse.json({ error: result.error || "Dados recusados pela MedusaPay." }, { status: 400 }),
+        };
       }
-      if (result.status === 502 || result.status === 503 || result.code === "NO_ACQUIRER") {
-        return NextResponse.json(
-          { error: "Pagamento indisponível no momento. Tente novamente em instantes." },
-          { status: 502 }
-        );
-      }
-      return NextResponse.json({ error: result.error || "Falha na MedusaPay.", gateway: result.raw }, { status: 502 });
+      return { outcome: "retry", reason: `http ${result.status ?? "-"} ${result.code ?? result.error ?? ""}`.trim() };
     }
     if (result.simulated) {
       // Conta em Modo Teste: a Medusa aprova na hora e não gera PIX real.
       console.error("[PIX/Medusa] conta em Modo Teste — venda simulada, sem QR Code.");
-      return NextResponse.json(
-        { error: "MedusaPay está em Modo Teste (venda simulada, sem PIX real). Ative um adquirente real." },
-        { status: 502 }
-      );
+      return { outcome: "retry", reason: "modo teste (venda simulada, sem PIX real)" };
     }
     if (!result.qrCode) {
-      return NextResponse.json({ error: "MedusaPay não retornou QR Code PIX válido." }, { status: 502 });
+      return { outcome: "retry", reason: "resposta sem QR Code" };
     }
     const txid = result.txid ?? null;
     let orderCode: string | null = null;
@@ -234,24 +234,23 @@ export async function POST(request: Request) {
       await markTxGateway(String(txid), "medusa");
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
-    return NextResponse.json({
-      txid,
-      orderCode,
-      gateway: "medusa",
-      qrCode: result.qrCode,
-      qrCodeImage: result.qrCodeImage ?? null,
-      expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      status: result.paymentStatus ?? "pending",
-      amount: value,
-      phone: phoneDigits,
-    });
+    return {
+      outcome: "ok",
+      json: {
+        txid,
+        orderCode,
+        gateway: "medusa",
+        qrCode: result.qrCode,
+        qrCodeImage: result.qrCodeImage ?? null,
+        expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        status: result.paymentStatus ?? "pending",
+        amount: value,
+        phone: phoneDigits,
+      },
+    };
   }
 
-  if (activeGateway === "centurion") {
-    if (!centurionConfigured()) {
-      console.error("[PIX API] CENTURION_API_KEY ausente no ambiente.");
-      return NextResponse.json({ error: "Erro interno: CenturionPay não configurada." }, { status: 500 });
-    }
+  async function attemptCenturion(): Promise<Attempt> {
     const postbackUrl = appBaseUrl ? `${appBaseUrl}/api/webhooks/centurion` : undefined;
     const a = body?.order?.address;
     const address =
@@ -279,13 +278,16 @@ export async function POST(request: Request) {
     });
     if (!result.ok) {
       console.error(`[PIX/Centurion] Erro (${result.status}):`, result.error);
-      if (result.status === 401) {
-        return NextResponse.json({ error: "Chave de autenticação inválida na CenturionPay." }, { status: 401 });
+      if (result.status === 400) {
+        return {
+          outcome: "fatal",
+          response: NextResponse.json({ error: result.error || "Dados recusados pela CenturionPay." }, { status: 400 }),
+        };
       }
-      return NextResponse.json({ error: result.error || "Falha na CenturionPay.", gateway: result.raw }, { status: 502 });
+      return { outcome: "retry", reason: `http ${result.status ?? "-"} ${result.error ?? ""}`.trim() };
     }
     if (!result.qrCode) {
-      return NextResponse.json({ error: "CenturionPay não retornou QR Code PIX válido." }, { status: 502 });
+      return { outcome: "retry", reason: "resposta sem QR Code" };
     }
     const txid = result.txid ?? null;
     let orderCode: string | null = null;
@@ -299,27 +301,25 @@ export async function POST(request: Request) {
       await markTxGateway(String(txid), "centurion");
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
-    return NextResponse.json({
-      txid,
-      orderCode,
-      gateway: "centurion",
-      qrCode: result.qrCode,
-      qrCodeImage: result.qrCodeImage ?? null,
-      expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      status: result.paymentStatus ?? "pending",
-      amount: value,
-      phone: phoneDigits,
-    });
+    return {
+      outcome: "ok",
+      json: {
+        txid,
+        orderCode,
+        gateway: "centurion",
+        qrCode: result.qrCode,
+        qrCodeImage: result.qrCodeImage ?? null,
+        expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        status: result.paymentStatus ?? "pending",
+        amount: value,
+        phone: phoneDigits,
+      },
+    };
   }
 
-  // ── Pagou.ai (gateway padrão — inalterado, com o relay dele) ──
-  const rawKey = process.env.PAGOUAI_SECRET_KEY;
-  if (!rawKey) {
-    console.error("[PIX API] Chave PAGOUAI_SECRET_KEY ausente no ambiente.");
-    return NextResponse.json({ error: "Erro interno: Gateway não configurado." }, { status: 500 });
-  }
-
-  const secretKey = rawKey.trim().replace(/^Bearer\s+/i, "");
+  // ── Pagou.ai (gateway padrão — mesmo fluxo de sempre, com o relay dele) ──
+  async function attemptPagou(): Promise<Attempt> {
+  const secretKey = (process.env.PAGOUAI_SECRET_KEY || "").trim().replace(/^Bearer\s+/i, "");
   const endpoint = "https://api.pagou.ai/v2/transactions";
   const externalRef = `order_${Date.now()}_${hashRateLimitValue(`${cpfDigits}|${amountCents}|${email}`).slice(0, 8)}`;
 
@@ -407,14 +407,11 @@ export async function POST(request: Request) {
       const detail = errorParts.length ? errorParts.join(" | ") : raw || "Erro desconhecido no gateway";
       console.error(`[PIX API] Erro (${upstream.status}):`, raw);
 
-      if (upstream.status === 401) {
-        return NextResponse.json({ error: "Chave de autenticação inválida na Pagou.ai." }, { status: 401 });
+      if (upstream.status === 400 || upstream.status === 422) {
+        return { outcome: "fatal", response: NextResponse.json({ error: detail }, { status: 400 }) };
       }
 
-      return NextResponse.json(
-        { error: detail, gateway: data ?? raw },
-        { status: 502 }
-      );
+      return { outcome: "retry", reason: `http ${upstream.status} ${detail}`.slice(0, 200) };
     }
 
     const transaction = data?.data ?? data ?? {};
@@ -424,7 +421,7 @@ export async function POST(request: Request) {
 
     if (!qrCode) {
       console.error("[PIX API] Resposta de sucesso, mas sem QR Code:", raw);
-      return NextResponse.json({ error: "Gateway não retornou QR Code PIX válido." }, { status: 502 });
+      return { outcome: "retry", reason: "resposta sem QR Code" };
     }
 
     const expiresAt = pix.expiration_date ?? new Date(Date.now() + 10 * 60 * 1000).toISOString();
@@ -490,22 +487,62 @@ export async function POST(request: Request) {
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
 
-    return NextResponse.json({
-      txid,
-      orderCode,
-      gateway: "pagou",
-      qrCode,
-      qrCodeImage,
-      expiresAt,
-      status: transaction?.status ?? "pending",
-      amount: value,
-      phone: phoneDigits,
-    });
+    return {
+      outcome: "ok",
+      json: {
+        txid,
+        orderCode,
+        gateway: "pagou",
+        qrCode,
+        qrCodeImage,
+        expiresAt,
+        status: transaction?.status ?? "pending",
+        amount: value,
+        phone: phoneDigits,
+      },
+    };
   } catch (err) {
     console.error("[PIX API] Falha na rede/comunicação:", err);
-    return NextResponse.json(
-      { error: "Falha de comunicação com o servidor de pagamento." },
-      { status: 502 }
-    );
+    return { outcome: "retry", reason: "falha de rede" };
   }
+  }
+
+  // ── Percorre a fila até um gateway devolver PIX ──
+  const attempts: Record<GatewayId, () => Promise<Attempt>> = {
+    medusa: attemptMedusa,
+    centurion: attemptCenturion,
+    pagou: attemptPagou,
+  };
+
+  const falhas: string[] = [];
+  for (const gw of chain) {
+    if (!gatewayConfigured(gw)) {
+      falhas.push(`${gw}: sem chave no ambiente`);
+      continue;
+    }
+    let attempt: Attempt;
+    try {
+      attempt = await attempts[gw]();
+    } catch (err) {
+      console.error(`[PIX API] Exceção no gateway ${gw}:`, err);
+      attempt = { outcome: "retry", reason: "exceção inesperada" };
+    }
+
+    if (attempt.outcome === "ok") {
+      if (falhas.length) {
+        console.warn(`[PIX API] fallback: ${gw} assumiu depois de ${falhas.join(" | ")}`);
+      }
+      return NextResponse.json(attempt.json);
+    }
+    if (attempt.outcome === "fatal") return attempt.response;
+
+    falhas.push(`${gw}: ${attempt.reason}`);
+    console.error(`[PIX API] gateway ${gw} fora — tentando o próximo. Motivo: ${attempt.reason}`);
+  }
+
+  console.error(`[PIX API] TODOS os gateways falharam: ${falhas.join(" | ")}`);
+  return NextResponse.json(
+    { error: "Pagamento indisponível no momento. Tente novamente em instantes.", tried: falhas },
+    { status: 502 }
+  );
 }
