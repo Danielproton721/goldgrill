@@ -33,9 +33,19 @@ ativas ou faltando, sem expor valores).
 | `RESEND_API_KEY` / `RESEND_FROM_EMAIL` | E-mails (confirmação, pendente, postado) | Recomendada |
 | `QSTASH_TOKEN` | Agenda os e-mails de pedido pendente/postado | Opcional |
 | `MEDUSAPAY_SECRET_KEY` / `CENTURION_API_KEY` | Gateways reserva | Opcional |
+| `MEDUSAPAY_WEBHOOK_SECRET` | Valida a assinatura do webhook da MedusaPay | Se usar MedusaPay |
 | `NOTIFY_URL_OVERRIDE` / `RELAY_SECRET` | Relay (oculta o domínio da Pagou.ai) | Opcional |
 
 Depois de alterar qualquer `NEXT_PUBLIC_*`, faça **Redeploy** (é embutida no build).
+
+### MedusaPay (API v2)
+
+A MedusaPay migrou para a v2 — ver [docs/medusapay-v2.md](docs/medusapay-v2.md).
+Para ativar: ① `MEDUSAPAY_SECRET_KEY` = chave `mk_live_...` (painel da Medusa →
+Configurações → API e Integrações); ② no MESMO painel, cadastrar o webhook
+`https://<dominio>/api/webhooks/medusa` e colocar o segredo dele em
+`MEDUSAPAY_WEBHOOK_SECRET` (a v2 não aceita mais `postbackUrl` no request);
+③ trocar o gateway ativo em `/admin` → Relay.
 
 ## Funcionalidades
 

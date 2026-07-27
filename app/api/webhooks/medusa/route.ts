@@ -3,18 +3,36 @@ import { NextResponse } from "next/server"
 import { recordPaymentStatus } from "@/lib/payment-status"
 import { getOrder } from "@/lib/order-store"
 import { dispatchOrderEmailOnce } from "@/lib/send-order-email"
-import { markOrderPaid } from "@/lib/orders"
+import { markOrderPaid, isOrderPaid } from "@/lib/orders"
 import { scheduleShippedNotify } from "@/lib/qstash"
-import { getStatusMedusa } from "@/lib/gateways/medusa"
+import { getStatusMedusa, verifyMedusaSignature } from "@/lib/gateways/medusa"
 
 export const dynamic = "force-dynamic"
 
-// SEM relay: a MedusaPay bate direto aqui (postbackUrl = este endpoint).
-// O postback não tem assinatura documentada, então lemos o id de vários caminhos.
+// SEM relay: a MedusaPay bate direto aqui (o relay é exclusivo da Pagou.ai).
+// A URL deste endpoint tem que ser cadastrada NO PAINEL da Medusa
+// (Configurações → API e Integrações → Webhook) — a API v2 não aceita mais
+// postbackUrl no corpo da cobrança.
+//
+// Eventos da v2: payment.approved | payment.refunded | transfer.updated.
+// Assinatura: X-Medusa-Signature: sha256=<hmac do corpo com o segredo>.
+
 function extractId(body: any): string | null {
-  const d = body?.data ?? body?.transaction ?? body ?? {}
-  const id = d?.id ?? d?.transactionId ?? body?.transactionId ?? body?.objectId ?? body?.id ?? null
+  const d = body?.data ?? body?.venda ?? body?.payment ?? body?.transaction ?? body ?? {}
+  const id =
+    d?.vendaId ??
+    d?.id ??
+    d?.transactionId ??
+    body?.vendaId ??
+    body?.transactionId ??
+    body?.objectId ??
+    body?.id ??
+    null
   return id != null ? String(id) : null
+}
+
+function extractEvent(body: any): string {
+  return String(body?.event ?? body?.evento ?? body?.type ?? "").toLowerCase()
 }
 
 export async function GET() {
@@ -22,24 +40,61 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // Sem relay: a MedusaPay bate DIRETO aqui (o relay é exclusivo da Pagou.ai).
+  const rawBody = await request.text()
+
+  // Assinatura HMAC (v2). null = MEDUSAPAY_WEBHOOK_SECRET não configurado →
+  // seguimos sem ela, já que abaixo confirmamos o pagamento na própria API.
+  const signatureOk = verifyMedusaSignature(rawBody, request.headers.get("x-medusa-signature"))
+  if (signatureOk === false) {
+    console.warn("[MEDUSA WEBHOOK] assinatura invalida — request descartado")
+    return NextResponse.json({ ok: false, error: "assinatura-invalida" }, { status: 401 })
+  }
+
   let body: any
   try {
-    body = await request.json()
+    body = rawBody ? JSON.parse(rawBody) : null
   } catch {
     return NextResponse.json({ ok: true }) // ack mesmo sem corpo válido
   }
 
+  const event = extractEvent(body)
+  const eventId = body?.eventId ? String(body.eventId) : null
   const txid = extractId(body)
+
+  // Saque atualizado não tem nada a ver com pedido — só ack.
+  if (event.startsWith("transfer.")) {
+    return NextResponse.json({ ok: true, handled: false, reason: "evento-de-saque" })
+  }
+
   if (!txid) {
     return NextResponse.json({ ok: true, handled: false, reason: "sem-id" })
   }
 
-  // NÃO confiamos no corpo (sem assinatura). Confirmamos consultando a própria
-  // API da Medusa antes de liberar qualquer coisa.
+  // NÃO confiamos no corpo pra liberar o pedido: confirmamos consultando a
+  // própria API da Medusa (vale mesmo com assinatura válida).
   const st = await getStatusMedusa(txid)
+
+  if (event === "payment.refunded") {
+    await recordPaymentStatus({
+      event: "medusa.refunded",
+      transactionId: txid,
+      status: st.ok ? st.status : "estornado",
+      paymentMethod: "pix",
+      updatedAt: new Date().toISOString(),
+    }).catch(() => {})
+    console.warn("[MEDUSA WEBHOOK] estorno recebido:", { txid, eventId })
+    return NextResponse.json({ ok: true, handled: true, refunded: true })
+  }
+
   if (!st.ok || !st.paid) {
-    return NextResponse.json({ ok: true, handled: false, reason: "nao-pago" })
+    return NextResponse.json({ ok: true, handled: false, reason: "nao-pago", status: st.status })
+  }
+
+  // Dedupe das retentativas da Medusa (30s / 2min / 3ª): se o pedido já está
+  // pago, não reagenda e-mail nem notificação de postagem.
+  const alreadyPaid = await isOrderPaid(txid).catch(() => false)
+  if (alreadyPaid) {
+    return NextResponse.json({ ok: true, handled: true, deduped: true })
   }
 
   // Grava o status pro polling do front refletir (mesma via do webhook Pagou).
@@ -63,6 +118,7 @@ export async function POST(request: Request) {
       const result = await dispatchOrderEmailOnce(txid, order)
       console.log("[MEDUSA WEBHOOK] e-mail:", {
         txid,
+        eventId,
         outcome: result.ok ? (result.deduped ? "ja-enviado" : `enviado:${result.id ?? ""}`) : `falha:${result.error}`,
       })
     } else {

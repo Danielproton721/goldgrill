@@ -186,7 +186,9 @@ export async function POST(request: Request) {
       console.error("[PIX API] MEDUSAPAY_SECRET_KEY ausente no ambiente.");
       return NextResponse.json({ error: "Erro interno: MedusaPay não configurada." }, { status: 500 });
     }
-    const postbackUrl = appBaseUrl ? `${appBaseUrl}/api/webhooks/medusa` : undefined;
+    // Na API v2 o webhook é cadastrado no painel da Medusa (Configurações → API
+    // e Integrações → Webhook) apontando para {dominio}/api/webhooks/medusa —
+    // não existe mais postbackUrl no corpo da cobrança.
     const result = await createPixMedusa({
       amountCents,
       name: name.trim(),
@@ -195,14 +197,27 @@ export async function POST(request: Request) {
       phoneDigits,
       ip: buyerIp,
       title: title || "Combo Enxoval",
-      postbackUrl,
     });
     if (!result.ok) {
-      console.error(`[PIX/Medusa] Erro (${result.status}):`, result.error);
+      console.error(`[PIX/Medusa] Erro (${result.status}/${result.code ?? "-"}):`, result.error);
       if (result.status === 401) {
         return NextResponse.json({ error: "Chave de autenticação inválida na MedusaPay." }, { status: 401 });
       }
+      if (result.status === 502 || result.status === 503 || result.code === "NO_ACQUIRER") {
+        return NextResponse.json(
+          { error: "Pagamento indisponível no momento. Tente novamente em instantes." },
+          { status: 502 }
+        );
+      }
       return NextResponse.json({ error: result.error || "Falha na MedusaPay.", gateway: result.raw }, { status: 502 });
+    }
+    if (result.simulated) {
+      // Conta em Modo Teste: a Medusa aprova na hora e não gera PIX real.
+      console.error("[PIX/Medusa] conta em Modo Teste — venda simulada, sem QR Code.");
+      return NextResponse.json(
+        { error: "MedusaPay está em Modo Teste (venda simulada, sem PIX real). Ative um adquirente real." },
+        { status: 502 }
+      );
     }
     if (!result.qrCode) {
       return NextResponse.json({ error: "MedusaPay não retornou QR Code PIX válido." }, { status: 502 });

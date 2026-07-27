@@ -46,7 +46,8 @@ export async function GET() {
       items: [
         { label: "Pagou.ai — chave secreta", envs: ["PAGOUAI_SECRET_KEY"], set: has("PAGOUAI_SECRET_KEY"), level: activeGateway === "pagou" ? "req" : "opt", hint: "Obrigatória se Pagou.ai for o gateway ativo." },
         { label: "Pagou.ai — chave pública", envs: ["NEXT_PUBLIC_PAGOUAI_PUBLIC_KEY"], set: has("NEXT_PUBLIC_PAGOUAI_PUBLIC_KEY"), level: activeGateway === "pagou" ? "rec" : "opt", hint: "Usada no fluxo de cartão." },
-        { label: "MedusaPay — chave", envs: ["MEDUSAPAY_SECRET_KEY"], set: has("MEDUSAPAY_SECRET_KEY"), level: activeGateway === "medusa" ? "req" : "opt", hint: "Só se usar MedusaPay." },
+        { label: "MedusaPay — API Key", envs: ["MEDUSAPAY_SECRET_KEY"], set: has("MEDUSAPAY_SECRET_KEY", "MEDUSAPAY_API_KEY"), level: activeGateway === "medusa" ? "req" : "opt", hint: "Chave mk_live_... (API v2). Só se usar MedusaPay." },
+        { label: "MedusaPay — segredo do webhook", envs: ["MEDUSAPAY_WEBHOOK_SECRET"], set: has("MEDUSAPAY_WEBHOOK_SECRET"), level: activeGateway === "medusa" ? "rec" : "opt", hint: "Valida a assinatura X-Medusa-Signature do webhook." },
         { label: "CenturionPay — chave", envs: ["CENTURION_API_KEY"], set: has("CENTURION_API_KEY"), level: activeGateway === "centurion" ? "req" : "opt", hint: "Só se usar CenturionPay." },
       ],
     },
