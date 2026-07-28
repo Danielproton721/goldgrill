@@ -183,13 +183,19 @@ export class CatalogReadonlyError extends Error {
   }
 }
 
-export async function upsertProduct(row: ProductRow): Promise<void> {
-  if (!kvConfigured()) throw new CatalogReadonlyError()
+// Aplica UM produto no objeto de overrides em memória — sem tocar no KV.
+// Separado do upsert pra que a edição em massa faça uma leitura e uma gravação
+// só: antes eram 4 comandos por produto (ler/gravar overrides + ler/gravar
+// deletados), o que em 227 produtos virava ~900 idas e voltas no Upstash.
+function aplicarNoOverlay(
+  row: ProductRow,
+  overrides: Record<string, Partial<Product>>,
+  base: Map<string, Product>
+): string {
   const id = (row.id ?? "").trim()
   if (!id) throw new Error('Produto sem "id".')
 
-  const overrides = await readOverrides()
-  const isExisting = baseById().has(id)
+  const isExisting = base.has(id)
   const partial = rowToPartial(row)
 
   if (isExisting) {
@@ -218,13 +224,37 @@ export async function upsertProduct(row: ProductRow): Promise<void> {
     }
     overrides[id] = newProduct
   }
-  await kvSetJSON(OVERRIDES_KEY, overrides)
+  return id
+}
 
-  // Se estava marcado como deletado, "ressuscita".
-  const deleted = await readDeleted()
-  if (deleted.includes(id)) {
-    await kvSetJSON(DELETED_KEY, deleted.filter((d) => d !== id))
+/**
+ * Grava vários produtos de uma vez: 2 leituras + 1~2 gravações no total,
+ * independente da quantidade. Se QUALQUER linha for inválida, nada é gravado —
+ * o catálogo nunca fica meio salvo.
+ */
+export async function upsertManyProducts(rows: ProductRow[]): Promise<number> {
+  if (!kvConfigured()) throw new CatalogReadonlyError()
+  if (!rows.length) return 0
+
+  const overrides = await readOverrides() // 1 leitura
+  const base = baseById() // montado uma vez, não por produto
+  const ids: string[] = []
+  for (const row of rows) ids.push(aplicarNoOverlay(row, overrides, base))
+
+  await kvSetJSON(OVERRIDES_KEY, overrides) // 1 gravação
+
+  // "Ressuscita" o que estava marcado como deletado — grava só se mudou algo.
+  const deleted = await readDeleted() // 1 leitura
+  const restantes = deleted.filter((d) => !ids.includes(d))
+  if (restantes.length !== deleted.length) {
+    await kvSetJSON(DELETED_KEY, restantes)
   }
+
+  return ids.length
+}
+
+export async function upsertProduct(row: ProductRow): Promise<void> {
+  await upsertManyProducts([row])
 }
 
 export async function deleteProduct(id: string): Promise<void> {

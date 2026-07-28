@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { isAuthed } from "@/lib/admin-auth"
-import { CatalogReadonlyError, upsertProduct } from "@/lib/catalog"
+import { CatalogReadonlyError, upsertManyProducts } from "@/lib/catalog"
 import { revalidateCatalog } from "@/lib/catalog-runtime"
 
 export const dynamic = "force-dynamic"
@@ -64,25 +64,17 @@ export async function POST(request: Request) {
     )
   }
 
-  const salvos: string[] = []
-  const falhas: string[] = []
-  for (const row of rows) {
-    try {
-      await upsertProduct(row)
-      salvos.push(String(row.id))
-    } catch (e: any) {
-      if (e instanceof CatalogReadonlyError) {
-        return NextResponse.json({ error: e.message || "Catálogo somente leitura." }, { status: 409 })
-      }
-      falhas.push(`${row?.id}: ${e?.message || "erro"}`)
+  // Uma leitura + uma gravação no KV pro lote inteiro (antes eram 4 comandos
+  // por produto — ~900 no Upstash pra editar o catálogo todo).
+  try {
+    const salvos = await upsertManyProducts(rows)
+    revalidateCatalog()
+    return NextResponse.json({ ok: true, salvos, falhas: [] })
+  } catch (e: any) {
+    if (e instanceof CatalogReadonlyError) {
+      return NextResponse.json({ error: e.message || "Catálogo somente leitura." }, { status: 409 })
     }
+    // Nada foi gravado: a validação acontece antes de escrever no KV.
+    return NextResponse.json({ error: `Nada foi salvo. ${e?.message || "erro"}` }, { status: 400 })
   }
-
-  revalidateCatalog()
-
-  return NextResponse.json({
-    ok: falhas.length === 0,
-    salvos: salvos.length,
-    falhas,
-  })
 }
