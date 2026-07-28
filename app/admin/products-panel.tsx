@@ -29,10 +29,14 @@ const ORDENS: { id: Ordem; label: string }[] = [
   { id: "problemas", label: "Precisa de atenção" },
 ]
 
+// Moeda em pt-BR com separador de milhar: 42.1 → "R$ 42,10", 2992 → "R$ 2.992,00".
+const moeda = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 })
+
 const brl = (v: string | number) => {
   const n = Number(v)
   if (!Number.isFinite(n) || n === 0) return ""
-  return `R$ ${n.toFixed(2).replace(".", ",")}`
+  return moeda(n)
 }
 
 // Formata um número cru ("740") como "740,00" pro campo ficar legível no
@@ -163,6 +167,37 @@ export function ProductsPanel({
 
   // Linhas selecionadas que ainda existem no catálogo (a busca some com itens
   // da tela, mas a seleção continua valendo — por isso filtramos do catálogo).
+  // Conteúdo de uma célula da tabela: preço vira moeda, o resto sai como está.
+  // Preço zerado aparece em vermelho — é produto que a loja mostra "R$ " vazio.
+  function celula(header: string, row: ProductRow) {
+    const bruto = row[header]
+    if (header !== columns.price && header !== columns.compareAtPrice) return bruto
+
+    const n = Number(bruto)
+    if (!bruto || !Number.isFinite(n)) return <span className="text-muted-foreground">—</span>
+
+    if (header === columns.price) {
+      return n > 0 ? (
+        <span className="font-medium">{moeda(n)}</span>
+      ) : (
+        <span className="font-bold text-red-600" title="Produto sem preço — a loja mostra o valor vazio">
+          {moeda(0)}
+        </span>
+      )
+    }
+
+    // Preço "de": só faz sentido quando é MAIOR que o preço; senão é ruído.
+    const preco = Number(row[columns.price])
+    if (n <= 0) return <span className="text-muted-foreground">—</span>
+    return n > preco ? (
+      <span className="text-muted-foreground line-through">{moeda(n)}</span>
+    ) : (
+      <span className="text-amber-700" title="O riscado precisa ser maior que o preço">
+        {moeda(n)}
+      </span>
+    )
+  }
+
   const rowsSelecionadas = useMemo(
     () => catalog.rows.filter((r) => selecionados.has(r[idHeader])),
     [catalog.rows, selecionados, idHeader]
@@ -571,7 +606,7 @@ export function ProductsPanel({
                       )}
                       {displayCols.map((h) => (
                         <td key={h} className="px-4 py-2 text-foreground">
-                          <div className="max-w-[220px] truncate">{row[h]}</div>
+                          <div className="max-w-[220px] truncate">{celula(h, row)}</div>
                         </td>
                       ))}
                       <td className="px-4 py-2">
