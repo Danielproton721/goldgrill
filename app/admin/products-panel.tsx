@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Download, ExternalLink, Pencil, Plus, Trash2, X } from "lucide-react"
+import { CheckSquare, Download, ExternalLink, Pencil, Plus, Square, Tag, Trash2, X } from "lucide-react"
 import type { Catalog, ProductRow } from "@/lib/catalog"
 import { RichTextEditor } from "./rich-text-editor"
+import { BulkPriceModal } from "./bulk-price-modal"
 
 const brl = (v: string | number) => {
   const n = Number(v)
@@ -55,6 +56,18 @@ export function ProductsPanel({
   const [query, setQuery] = useState("")
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [newImageUrl, setNewImageUrl] = useState("")
+  // Seleção em massa (ids). Set pra alternar sem varrer array a cada clique.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+  const [bulkAberto, setBulkAberto] = useState(false)
+
+  function alternar(id: string) {
+    setSelecionados((atual) => {
+      const proximo = new Set(atual)
+      if (proximo.has(id)) proximo.delete(id)
+      else proximo.add(id)
+      return proximo
+    })
+  }
 
   const idHeader = columns.id
   const headers = catalog.headers
@@ -88,6 +101,24 @@ export function ProductsPanel({
   }, [catalog.rows, query, columns, idHeader])
 
   const visibleRows = rows.slice(0, 300)
+
+  // Linhas selecionadas que ainda existem no catálogo (a busca some com itens
+  // da tela, mas a seleção continua valendo — por isso filtramos do catálogo).
+  const rowsSelecionadas = useMemo(
+    () => catalog.rows.filter((r) => selecionados.has(r[idHeader])),
+    [catalog.rows, selecionados, idHeader]
+  )
+  const todosVisiveisMarcados =
+    visibleRows.length > 0 && visibleRows.every((r) => selecionados.has(r[idHeader]))
+
+  function alternarTodosVisiveis() {
+    setSelecionados((atual) => {
+      const proximo = new Set(atual)
+      if (todosVisiveisMarcados) visibleRows.forEach((r) => proximo.delete(r[idHeader]))
+      else visibleRows.forEach((r) => proximo.add(r[idHeader]))
+      return proximo
+    })
+  }
 
   async function refresh() {
     const r = await fetch("/api/admin/products", { cache: "no-store" })
@@ -241,8 +272,19 @@ export function ProductsPanel({
           className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="text-xs text-muted-foreground sm:text-sm">
-            {rows.length} de {catalog.rows.length} produto(s)
+          <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+            <span>
+              {rows.length} de {catalog.rows.length} produto(s)
+            </span>
+            {visibleRows.length > 0 && (
+              <button
+                onClick={alternarTodosVisiveis}
+                className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted md:hidden"
+              >
+                {todosVisiveisMarcados ? <Square className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
+                {todosVisiveisMarcados ? "desmarcar" : "marcar"} todos
+              </button>
+            )}
           </div>
           <div className="flex flex-1 flex-wrap justify-end gap-2 sm:flex-none">
             <button
@@ -280,6 +322,30 @@ export function ProductsPanel({
         <p className={`mb-3 text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>
       )}
 
+      {/* Barra da seleção: só existe quando há produto marcado. Fica colada no
+          topo ao rolar, pra não sumir numa lista de 200 produtos. */}
+      {selecionados.size > 0 && (
+        <div className="gg-pop sticky top-2 z-20 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-card p-2.5 shadow-lg">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground">
+            <CheckSquare className="h-3.5 w-3.5" />
+            {selecionados.size} selecionado(s)
+          </span>
+          <button
+            onClick={() => setBulkAberto(true)}
+            disabled={!kvOk}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted disabled:opacity-40"
+          >
+            <Tag className="h-3.5 w-3.5" /> Editar preços
+          </button>
+          <button
+            onClick={() => setSelecionados(new Set())}
+            className="ml-auto text-xs font-bold text-muted-foreground hover:text-foreground"
+          >
+            limpar seleção
+          </button>
+        </div>
+      )}
+
       {/* Lista vazia */}
       {visibleRows.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-10 text-center text-sm text-muted-foreground">
@@ -297,9 +363,22 @@ export function ProductsPanel({
               const compareRaw = Number(row[columns.compareAtPrice])
               const showCompare =
                 Number.isFinite(compareRaw) && compareRaw > Number(row[columns.price])
+              const marcado = selecionados.has(id)
               return (
-                <div key={id} className="rounded-xl border border-border bg-card p-3">
+                <div
+                  key={id}
+                  className={`rounded-xl border bg-card p-3 transition-colors ${
+                    marcado ? "border-primary/50 bg-muted/50" : "border-border"
+                  }`}
+                >
                   <div className="flex gap-3">
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() => alternar(id)}
+                      aria-label={`Selecionar ${row[columns.name] || id}`}
+                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary"
+                    />
                     {imageHeader &&
                       (row[imageHeader] ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -367,6 +446,16 @@ export function ProductsPanel({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      checked={todosVisiveisMarcados}
+                      onChange={alternarTodosVisiveis}
+                      title="Marcar/desmarcar todos da lista"
+                      aria-label="Marcar todos os produtos da lista"
+                      className="h-4 w-4 cursor-pointer accent-primary"
+                    />
+                  </th>
                   {imageHeader && <th className="px-4 py-3 font-semibold">Img</th>}
                   {displayCols.map((h) => (
                     <th key={h} className="px-4 py-3 font-semibold">{h}</th>
@@ -377,8 +466,23 @@ export function ProductsPanel({
               <tbody>
                 {visibleRows.map((row) => {
                   const id = row[idHeader]
+                  const marcado = selecionados.has(id)
                   return (
-                    <tr key={id} className="border-b border-border/60 last:border-0">
+                    <tr
+                      key={id}
+                      className={`border-b border-border/60 last:border-0 transition-colors ${
+                        marcado ? "bg-muted/60" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => alternar(id)}
+                          aria-label={`Selecionar ${row[columns.name] || id}`}
+                          className="h-4 w-4 cursor-pointer accent-primary"
+                        />
+                      </td>
                       {imageHeader && (
                         <td className="px-4 py-2">
                           {row[imageHeader] ? (
@@ -611,6 +715,21 @@ export function ProductsPanel({
             </div>
           </div>
         </div>
+      )}
+
+      {bulkAberto && (
+        <BulkPriceModal
+          rows={rowsSelecionadas}
+          onClose={() => setBulkAberto(false)}
+          onDone={async (resultado) => {
+            setMsg(resultado)
+            setBulkAberto(false)
+            if (resultado.ok) {
+              setSelecionados(new Set())
+              await refresh()
+            }
+          }}
+        />
       )}
     </div>
   )
