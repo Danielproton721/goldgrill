@@ -8,6 +8,24 @@ export const dynamic = "force-dynamic";
 // autenticado, mas mesmo assim: status booleano, zero vazamento de segredo.
 const has = (...names: string[]) => names.some((n) => (process.env[n] || "").trim().length > 0);
 
+// Nome do banco Upstash a partir da URL (ex.: https://apt-mammal-12345.upstash.io
+// → "apt-mammal-12345"). É o identificador que aparece no console do Upstash, e
+// serve pra saber QUAL banco esta loja usa quando existem várias contas.
+// Só o host — o token, que é o segredo de verdade, nunca sai daqui.
+function nomeDoBanco(...envs: string[]): string | null {
+  for (const env of envs) {
+    const url = (process.env[env] || "").trim();
+    if (!url) continue;
+    try {
+      const host = new URL(url).hostname;
+      return host.replace(/\.upstash\.io$/i, "");
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 type Item = {
   label: string;
   envs: string[];
@@ -22,6 +40,8 @@ export async function GET() {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
   const activeGateway = await getActiveGateway();
+  const bancoPrincipal = nomeDoBanco("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL");
+  const bancoRelay = nomeDoBanco("RELAY_KV_REST_API_URL");
 
   const groups: Group[] = [
     {
@@ -34,9 +54,11 @@ export async function GET() {
     },
     {
       title: "Banco de dados (Upstash/KV)",
-      desc: "Sem isto: não salva pedidos, visitantes nem a troca de gateway.",
+      desc: bancoPrincipal
+        ? `Esta loja usa o banco "${bancoPrincipal}"${bancoRelay && bancoRelay !== bancoPrincipal ? ` · relay no banco "${bancoRelay}"` : ""}.`
+        : "Sem isto: não salva pedidos, visitantes nem a troca de gateway.",
       items: [
-        { label: "URL do Upstash", envs: ["KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"], set: has("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"), level: "req", hint: "KV_REST_API_URL (ou UPSTASH_REDIS_REST_URL)." },
+        { label: "URL do Upstash", envs: ["KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"], set: has("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"), level: "req", hint: bancoPrincipal ? `Banco em uso: ${bancoPrincipal}` : "KV_REST_API_URL (ou UPSTASH_REDIS_REST_URL)." },
         { label: "Token do Upstash", envs: ["KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_TOKEN"], set: has("KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_TOKEN"), level: "req", hint: "KV_REST_API_TOKEN (ou UPSTASH_REDIS_REST_TOKEN)." },
       ],
     },
@@ -76,5 +98,5 @@ export async function GET() {
     },
   ];
 
-  return NextResponse.json({ activeGateway, groups });
+  return NextResponse.json({ activeGateway, groups, bancoPrincipal, bancoRelay });
 }
