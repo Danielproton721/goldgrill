@@ -46,19 +46,47 @@ function memRead(key: string) {
   return entry;
 }
 
+// Saúde do banco nesta invocação. O painel usa pra avisar em vez de estourar
+// uma tela de erro: banco fora do ar (plano estourado, credencial trocada,
+// Upstash instável) não pode derrubar o /admin inteiro.
+let ultimaFalha: { quando: number; motivo: string } | null = null;
+
+export function kvSaude(): { ok: boolean; motivo: string | null; quando: number | null } {
+  if (!ultimaFalha) return { ok: true, motivo: null, quando: null };
+  return { ok: false, motivo: ultimaFalha.motivo, quando: ultimaFalha.quando };
+}
+
 async function command(args: (string | number)[]): Promise<any> {
-  const res = await fetch(REST_URL, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${REST_TOKEN}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(args),
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(REST_URL, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${REST_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(args),
+      cache: "no-store",
+      // Sem isto, um Upstash lento segura a resposta da página até o timeout
+      // da função — o usuário vê a loja "travada" em vez de um erro rápido.
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (e: any) {
+    const motivo = e?.name === "TimeoutError" ? "sem resposta (timeout)" : "falha de conexão";
+    ultimaFalha = { quando: Date.now(), motivo };
+    throw new Error(`[KV] ${motivo}`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    // 429 = limite do plano estourado; 401/403 = credencial trocada/revogada.
+    const motivo =
+      res.status === 429
+        ? "limite do plano atingido"
+        : res.status === 401 || res.status === 403
+          ? "credencial recusada"
+          : `erro ${res.status}`;
+    ultimaFalha = { quando: Date.now(), motivo };
     throw new Error(`[KV] comando falhou (${res.status}): ${text}`);
   }
 
@@ -66,12 +94,26 @@ async function command(args: (string | number)[]): Promise<any> {
   return data?.result ?? null;
 }
 
+/**
+ * Leitura tolerante: se o banco não responder, devolve `padrao` em vez de
+ * derrubar a página. Só pra LEITURA — escrita continua lançando, porque
+ * gravação que falha calada perde pedido.
+ */
+async function leitura<T>(args: (string | number)[], padrao: T): Promise<T> {
+  try {
+    return (await command(args)) as T;
+  } catch (e) {
+    console.error("[KV] leitura falhou, seguindo com valor padrão:", (e as Error)?.message);
+    return padrao;
+  }
+}
+
 export async function kvGet(key: string): Promise<string | null> {
   if (!isKvConfigured) {
     const entry = memRead(key);
     return entry ? entry.value : null;
   }
-  const result = await command(["GET", key]);
+  const result = await leitura<any>(["GET", key], null);
   if (result === null || result === undefined) return null;
   return typeof result === "string" ? result : String(result);
 }
@@ -169,7 +211,7 @@ export async function kvZRevRange(key: string, start: number, stop: number): Pro
     const end = stop < 0 ? ordered.length + stop + 1 : stop + 1;
     return ordered.slice(start, end);
   }
-  const res = await command(["ZREVRANGE", key, start, stop]);
+  const res = await leitura<any>(["ZREVRANGE", key, start, stop], []);
   return Array.isArray(res) ? res.map(String) : [];
 }
 
@@ -191,7 +233,7 @@ export async function kvZRemRangeByScore(key: string, min: number, max: number):
 
 export async function kvZCard(key: string): Promise<number> {
   if (!isKvConfigured) return memZSet(key).size;
-  const res = await command(["ZCARD", key]);
+  const res = await leitura<any>(["ZCARD", key], 0);
   return typeof res === "number" ? res : Number(res) || 0;
 }
 
@@ -222,7 +264,7 @@ export async function kvPfAdd(key: string, member: string): Promise<void> {
 
 export async function kvPfCount(key: string): Promise<number> {
   if (!isKvConfigured) return memHllSet(key).size;
-  const res = await command(["PFCOUNT", key]);
+  const res = await leitura<any>(["PFCOUNT", key], 0);
   return typeof res === "number" ? res : Number(res) || 0;
 }
 
@@ -235,7 +277,7 @@ export async function kvPfCountUnion(keys: string[]): Promise<number> {
     for (const k of keys) for (const m of memHllSet(k)) union.add(m);
     return union.size;
   }
-  const res = await command(["PFCOUNT", ...keys]);
+  const res = await leitura<any>(["PFCOUNT", ...keys], 0);
   return typeof res === "number" ? res : Number(res) || 0;
 }
 

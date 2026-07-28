@@ -75,8 +75,12 @@ export async function setOrderProofUrl(txid: string, proofUrl: string): Promise<
 export async function listRecentOrders(limit = 100): Promise<AdminOrder[]> {
   if (!kvConfigured()) return []
 
-  // Limpa entradas antigas do índice (mantém a listagem enxuta).
-  await kvZRemRangeByScore(ORDERS_INDEX, 0, Date.now() - INDEX_MAX_AGE_MS)
+  // Limpa entradas antigas do índice (mantém a listagem enxuta). É manutenção,
+  // não parte da listagem: se o banco estiver fora do ar, não pode derrubar o
+  // painel inteiro — a poda espera a próxima abertura.
+  await kvZRemRangeByScore(ORDERS_INDEX, 0, Date.now() - INDEX_MAX_AGE_MS).catch((e) => {
+    console.error("[orders] poda do índice falhou (segue listando):", e?.message)
+  })
 
   const txids = await kvZRevRange(ORDERS_INDEX, 0, limit - 1)
   const out: AdminOrder[] = []

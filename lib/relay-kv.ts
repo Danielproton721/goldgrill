@@ -42,6 +42,17 @@ export function relayKvNomeDoBanco(): string | null {
   }
 }
 
+// Leitura tolerante (mesmo princípio do kv-store): banco do relay fora do ar
+// não pode derrubar o painel — devolve o padrão e registra no log.
+async function leitura<T>(args: (string | number)[], padrao: T): Promise<T> {
+  try {
+    return (await command(args)) as T
+  } catch (e) {
+    console.error("[relay-kv] leitura falhou, seguindo com valor padrão:", (e as Error)?.message)
+    return padrao
+  }
+}
+
 async function command(args: (string | number)[]): Promise<any> {
   const res = await fetch(REST_URL, {
     method: "POST",
@@ -72,7 +83,7 @@ export function usingSeparateKv(): boolean {
 
 export async function kvGetJSON<T = unknown>(key: string): Promise<T | null> {
   if (!useSeparate) return mainKv.kvGetJSON<T>(key)
-  const result = await command(["GET", key])
+  const result = await leitura<any>(["GET", key], null)
   if (result === null || result === undefined) return null
   try {
     return JSON.parse(typeof result === "string" ? result : String(result)) as T
@@ -95,7 +106,7 @@ export async function kvZAdd(key: string, score: number, member: string): Promis
 
 export async function kvZRevRange(key: string, start: number, stop: number): Promise<string[]> {
   if (!useSeparate) return mainKv.kvZRevRange(key, start, stop)
-  const res = await command(["ZREVRANGE", key, start, stop])
+  const res = await leitura<any>(["ZREVRANGE", key, start, stop], [])
   return Array.isArray(res) ? res.map(String) : []
 }
 

@@ -1,7 +1,15 @@
 "use client"
 
 import { useState } from "react"
-import { Package, ShoppingBag, Waypoints, KeyRound, Mail, MessageCircleQuestion } from "lucide-react"
+import {
+  Package,
+  ShoppingBag,
+  Waypoints,
+  KeyRound,
+  Mail,
+  MessageCircleQuestion,
+  DatabaseZap,
+} from "lucide-react"
 import type { AdminOrder } from "@/lib/orders"
 import type { Catalog } from "@/lib/catalog"
 import { LogoutButton } from "./logout-button"
@@ -29,6 +37,7 @@ export function AdminShell({
   gatewaySwitch,
   banco,
   bancoRelay,
+  kvFalhou,
 }: {
   brand: string
   modules: Modules
@@ -42,6 +51,8 @@ export function AdminShell({
   /** Nome do banco Upstash — aparece no card do contador de online. */
   banco?: string | null
   bancoRelay?: string | null
+  /** Motivo da falha do banco nesta invocação (null = tudo bem). */
+  kvFalhou?: string | null
 }) {
   const tabs = [
     modules.orders ? ("orders" as const) : null,
@@ -74,6 +85,33 @@ export function AdminShell({
             <LogoutButton />
           </div>
         </div>
+
+        {/* Banco fora do ar: antes isso derrubava o painel com tela de erro.
+            Agora abre em modo degradado, avisando o que está acontecendo. */}
+        {kvFalhou && (
+          <div className="mb-5 rounded-xl border-2 border-red-300 bg-red-50 p-4">
+            <div className="flex items-start gap-2">
+              <DatabaseZap className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+              <div>
+                <h2 className="text-sm font-bold text-red-800">
+                  Banco de dados sem resposta — {kvFalhou}
+                </h2>
+                <p className="mt-1 text-xs leading-relaxed text-red-700">
+                  O painel está mostrando o que conseguiu ler{banco ? ` do banco "${banco}"` : ""} — números e
+                  listas podem estar vazios ou desatualizados, e <strong>o que você salvar agora pode não
+                  gravar</strong>. A loja continua no ar, mas pedido novo corre risco de não ser registrado.
+                </p>
+                <p className="mt-1.5 text-xs text-red-700">
+                  {kvFalhou === "limite do plano atingido"
+                    ? "O plano do Upstash estourou o limite de comandos. Aumente o plano ou espere a virada do período."
+                    : kvFalhou === "credencial recusada"
+                      ? "O token do Upstash foi trocado ou revogado. Confira KV_REST_API_TOKEN na Vercel e faça Redeploy."
+                      : "Veja o status do Upstash e recarregue em alguns minutos."}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {modules.orders && <VisitorsHistory />}
 

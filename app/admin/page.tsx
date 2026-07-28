@@ -1,7 +1,7 @@
 import { adminConfig } from "@/admin.config"
 import { adminConfigured, isAuthed } from "@/lib/admin-auth"
 import { kvConfigured, listRecentOrders } from "@/lib/orders"
-import { kvNomeDoBanco } from "@/lib/kv-store"
+import { kvNomeDoBanco, kvSaude } from "@/lib/kv-store"
 import { relayKvNomeDoBanco } from "@/lib/relay-kv"
 import { getMergedCatalog, pendingChangesCount } from "@/lib/catalog"
 import {
@@ -47,6 +47,9 @@ export default async function AdminPage() {
     GATEWAYS.map((g) => [g.id, gatewayConfigured(g.id)])
   ) as Record<GatewayId, boolean>
   const gatewayLabels = Object.fromEntries(GATEWAYS.map((g) => [g.id, g.label])) as Record<GatewayId, string>
+  // Checado DEPOIS das leituras acima: se alguma falhou, o painel abre em modo
+  // degradado com aviso, em vez de estourar tela de erro.
+  const saudeKv = kvSaude()
 
   return (
     <AdminShell
@@ -60,6 +63,7 @@ export default async function AdminPage() {
       pending={pending}
       banco={kvNomeDoBanco()}
       bancoRelay={relayKvNomeDoBanco()}
+      kvFalhou={saudeKv.ok ? null : saudeKv.motivo}
       gatewaySwitch={
         <GatewaySwitch
           initial={gatewayConfig}
