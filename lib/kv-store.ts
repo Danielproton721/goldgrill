@@ -16,6 +16,18 @@ const REST_TOKEN =
 
 export const isKvConfigured = Boolean(REST_URL && REST_TOKEN);
 
+// Nome do banco no console do Upstash, tirado do host da URL
+// (https://apt-mammal-12345.upstash.io → "apt-mammal-12345"). Serve pra saber
+// QUAL banco esta loja usa quando existem várias contas. O token nunca sai.
+export function kvNomeDoBanco(): string | null {
+  if (!REST_URL) return null;
+  try {
+    return new URL(REST_URL).hostname.replace(/\.upstash\.io$/i, "");
+  } catch {
+    return null;
+  }
+}
+
 // Fallback em memória (só serve para dev local — ver aviso acima).
 const globalForKv = globalThis as typeof globalThis & {
   __fionobreKvMem?: Map<string, { value: string; expiresAt: number | null }>;

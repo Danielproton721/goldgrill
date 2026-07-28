@@ -31,6 +31,17 @@ export function relayKvDiag(): { urlSet: boolean; tokenSet: boolean } {
   return { urlSet: Boolean(REST_URL), tokenSet: Boolean(REST_TOKEN) }
 }
 
+// Nome do banco do relay no console do Upstash (só o host). Devolve o do KV
+// principal quando o relay não tem banco separado — é lá que ele está gravando.
+export function relayKvNomeDoBanco(): string | null {
+  if (!useSeparate) return mainKv.kvNomeDoBanco()
+  try {
+    return new URL(REST_URL).hostname.replace(/\.upstash\.io$/i, "")
+  } catch {
+    return null
+  }
+}
+
 async function command(args: (string | number)[]): Promise<any> {
   const res = await fetch(REST_URL, {
     method: "POST",

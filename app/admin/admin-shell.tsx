@@ -27,6 +27,8 @@ export function AdminShell({
   catalog,
   pending,
   gatewaySwitch,
+  banco,
+  bancoRelay,
 }: {
   brand: string
   modules: Modules
@@ -37,6 +39,9 @@ export function AdminShell({
   catalog: Catalog
   pending: number
   gatewaySwitch?: React.ReactNode
+  /** Nome do banco Upstash — aparece no card do contador de online. */
+  banco?: string | null
+  bancoRelay?: string | null
 }) {
   const tabs = [
     modules.orders ? ("orders" as const) : null,
@@ -65,7 +70,7 @@ export function AdminShell({
             )}
           </div>
           <div className="flex items-center justify-between gap-3 sm:justify-end">
-            {modules.orders && <OnlineCount />}
+            {modules.orders && <OnlineCount banco={banco} bancoRelay={bancoRelay} />}
             <LogoutButton />
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { adminConfig } from "@/admin.config"
 import { adminConfigured, isAuthed } from "@/lib/admin-auth"
 import { kvConfigured, listRecentOrders } from "@/lib/orders"
+import { kvNomeDoBanco } from "@/lib/kv-store"
+import { relayKvNomeDoBanco } from "@/lib/relay-kv"
 import { getMergedCatalog, pendingChangesCount } from "@/lib/catalog"
 import {
   GATEWAYS,
@@ -56,6 +58,8 @@ export default async function AdminPage() {
       orders={orders}
       catalog={catalog}
       pending={pending}
+      banco={kvNomeDoBanco()}
+      bancoRelay={relayKvNomeDoBanco()}
       gatewaySwitch={
         <GatewaySwitch
           initial={gatewayConfig}
