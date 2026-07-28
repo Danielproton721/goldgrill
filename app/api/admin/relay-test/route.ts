@@ -20,10 +20,19 @@ export async function POST() {
     return NextResponse.json({ ok: false, titulo: "Sem URL do relay", detalhe: "Cole a URL que o hub te deu." })
   }
 
+  // Nomes em português e auto-explicativos: este corpo aparece no log do hub,
+  // e quem abrir de madrugada precisa entender na hora que foi um teste.
+  const agora = new Date()
+  const hora = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })
   const corpo = JSON.stringify({
-    type: "relay-test",
-    event: "relay.test",
-    data: { id: `relay-test-${Date.now()}`, status: "test" },
+    type: "teste-do-painel",
+    event: "teste.painel",
+    aviso: "Isto é um teste feito no painel da loja. Nenhum pedido foi alterado.",
+    data: {
+      id: `teste-do-painel-${agora.getTime()}`,
+      status: "teste",
+      criado_em: `${hora} (horário de Brasília)`,
+    },
   })
 
   let res: Response
