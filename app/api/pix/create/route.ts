@@ -105,7 +105,7 @@ function getOwnWebhookUrl(request: Request, path: string) {
 // Pra onde o gateway avisa o pagamento: o relay dele (se ligado no /admin) ou o
 // domínio próprio desta loja.
 async function resolveNotifyUrl(request: Request, id: GatewayId, relay: GatewayConfig["relay"]) {
-  if (relay.enabled[id] && relay.url[id]) return relay.url[id];
+  if (relay.enabled[id] && relay.url) return relay.url;
   return getOwnWebhookUrl(request, WEBHOOK_PATH[id]);
 }
 

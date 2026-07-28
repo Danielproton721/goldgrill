@@ -4,6 +4,7 @@ import { kvConfigured, listRecentOrders } from "@/lib/orders"
 import { getMergedCatalog, pendingChangesCount } from "@/lib/catalog"
 import {
   GATEWAYS,
+  RELAY_IN_PATH,
   RELAY_VIA_PAINEL,
   WEBHOOK_PATH,
   gatewayConfigured,
@@ -61,6 +62,7 @@ export default async function AdminPage() {
           configured={gatewayConfigured_}
           labels={gatewayLabels}
           webhookPath={WEBHOOK_PATH}
+          relayInPath={RELAY_IN_PATH}
           relayViaPainel={RELAY_VIA_PAINEL}
           appBaseUrl={(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}
           relaySecretOk={Boolean(process.env.RELAY_SECRET)}

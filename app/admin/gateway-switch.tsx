@@ -9,6 +9,7 @@ export function GatewaySwitch({
   configured,
   labels,
   webhookPath,
+  relayInPath,
   relayViaPainel,
   appBaseUrl,
   relaySecretOk,
@@ -18,8 +19,10 @@ export function GatewaySwitch({
   /** Quais gateways têm chave no ambiente (vindo do servidor). */
   configured: Record<GatewayId, boolean>
   labels: Record<GatewayId, string>
-  /** Endpoint desta loja que recebe o webhook de cada gateway. */
+  /** Endpoint desta loja que recebe o webhook de cada gateway (sem relay). */
   webhookPath: Record<GatewayId, string>
+  /** Porta única do relay — o destino que se cadastra no hub. */
+  relayInPath: string
   /** Gateways cuja URL de webhook é cadastrada no painel deles (Medusa v2). */
   relayViaPainel: Record<GatewayId, boolean>
   appBaseUrl: string
@@ -29,9 +32,18 @@ export function GatewaySwitch({
   const [config, setConfig] = useState<GatewayConfig>(initial)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [copiadoDestino, setCopiadoDestino] = useState(false)
 
   const principal = config.order.find((id) => config.enabled[id]) ?? null
   const fila = config.order.filter((id) => config.enabled[id] && id !== principal)
+  // Porta única: é este o destino que se cadastra no hub.
+  const destinoRelay = `${appBaseUrl || "https://seu-dominio"}${relayInPath}`
+
+  function copiarTexto(texto: string) {
+    navigator.clipboard?.writeText(texto)
+    setCopiadoDestino(true)
+    setTimeout(() => setCopiadoDestino(false), 1500)
+  }
 
   async function save(next: GatewayConfig) {
     const anterior = config
@@ -72,21 +84,14 @@ export function GatewaySwitch({
     save({ ...config, enabled })
   }
 
-  function setRelayUrl(id: GatewayId, url: string) {
-    setConfig((c) => ({ ...c, relay: { ...c.relay, url: { ...c.relay.url, [id]: url } } }))
-  }
-
   function toggleRelay(id: GatewayId) {
     const ligando = !config.relay.enabled[id]
-    const url = (config.relay.url[id] || "").trim()
+    const url = (config.relay.url || "").trim()
     if (ligando && !/^https:\/\/.+/i.test(url)) {
-      setMsg({ ok: false, text: `Cole a URL https do relay de ${labels[id]} antes de ligar.` })
+      setMsg({ ok: false, text: "Cole a URL https do relay lá em cima antes de ligar." })
       return
     }
-    save({
-      ...config,
-      relay: { url: { ...config.relay.url, [id]: url }, enabled: { ...config.relay.enabled, [id]: ligando } },
-    })
+    save({ ...config, relay: { url, enabled: { ...config.relay.enabled, [id]: ligando } } })
   }
 
   function move(id: GatewayId, dir: -1 | 1) {
@@ -109,6 +114,38 @@ export function GatewaySwitch({
             sozinho — o cliente não vê erro.
           </p>
         </div>
+      </div>
+
+      {/* Relay: UMA URL pros três. No hub basta um cadastro apontando pra
+          /api/webhooks/relay-in, que descobre o gateway e despacha. */}
+      <div className="mt-3 rounded-lg border border-border bg-muted/40 p-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Waypoints className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-bold text-foreground">Relay (opcional)</span>
+          <input
+            value={config.relay.url}
+            onChange={(e) => setConfig((c) => ({ ...c, relay: { ...c.relay, url: e.target.value } }))}
+            onBlur={() => {
+              const url = (config.relay.url || "").trim()
+              if (url !== initial.relay.url) save({ ...config, relay: { ...config.relay, url } })
+            }}
+            disabled={!kvOk || saving}
+            placeholder="https://dominio-do-hub/api/webhooks/payment/<chave>"
+            className="min-w-[240px] flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px] disabled:opacity-50"
+          />
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          Cole aqui a URL que o hub te deu (<strong>um cadastro só</strong>, serve pros três). No hub, o destino
+          dessa chave tem que ser{" "}
+          <button
+            onClick={() => copiarTexto(destinoRelay)}
+            className="inline-flex items-center gap-1 rounded bg-background px-1 py-0.5 font-mono text-[10px] hover:bg-muted"
+          >
+            {copiadoDestino ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {destinoRelay}
+          </button>{" "}
+          — ele descobre sozinho de qual gateway veio o aviso.
+        </p>
       </div>
 
       <ul className="mt-3 space-y-2">
@@ -169,15 +206,18 @@ export function GatewaySwitch({
                 )}
 
                 <RelayRow
-                  id={id}
                   label={labels[id]}
                   on={config.relay.enabled[id]}
-                  url={config.relay.url[id] || ""}
+                  temUrl={Boolean(config.relay.url)}
                   viaPainel={relayViaPainel[id]}
-                  destino={`${appBaseUrl || "https://seu-dominio"}${webhookPath[id]}`}
+                  urlPraCadastrar={
+                    config.relay.enabled[id] && config.relay.url
+                      ? config.relay.url
+                      : `${appBaseUrl || "https://seu-dominio"}${webhookPath[id]}`
+                  }
                   disabled={!kvOk || saving}
-                  onUrl={(v) => setRelayUrl(id, v)}
                   onToggle={() => toggleRelay(id)}
+                  onCopiar={copiarTexto}
                 />
               </div>
 
@@ -223,91 +263,54 @@ export function GatewaySwitch({
   )
 }
 
-// Linha do relay de UM gateway: liga/desliga + a URL do relay dele.
-// Cada gateway precisa da SUA URL — no hub, cada chave repassa pra um endpoint
-// diferente desta loja (/api/webhooks/pagouai, /medusa, /centurion).
+// Botão de relay de UM gateway. A URL é a mesma pros três (fica no topo do
+// card) — aqui só se decide se ESTE gateway avisa pelo relay ou direto.
 function RelayRow({
-  id,
   label,
   on,
-  url,
+  temUrl,
   viaPainel,
-  destino,
+  urlPraCadastrar,
   disabled,
-  onUrl,
   onToggle,
+  onCopiar,
 }: {
-  id: GatewayId
   label: string
   on: boolean
-  url: string
+  temUrl: boolean
   viaPainel: boolean
-  destino: string
+  urlPraCadastrar: string
   disabled: boolean
-  onUrl: (v: string) => void
   onToggle: () => void
+  onCopiar: (texto: string) => void
 }) {
-  const [copiado, setCopiado] = useState(false)
-
-  function copiar(texto: string) {
-    navigator.clipboard?.writeText(texto)
-    setCopiado(true)
-    setTimeout(() => setCopiado(false), 1500)
-  }
-
   return (
-    <div className="mt-2 rounded-lg bg-muted/40 p-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <Waypoints className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] font-bold text-muted-foreground">RELAY</span>
-        <button
-          onClick={onToggle}
-          disabled={disabled}
-          className={`rounded px-2 py-0.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
-            on ? "bg-violet-600 text-white" : "border border-border text-muted-foreground hover:bg-muted"
-          }`}
-        >
-          {on ? "ligado — desativar" : "desligado — ativar"}
-        </button>
-        <input
-          value={url}
-          onChange={(e) => onUrl(e.target.value)}
-          disabled={disabled}
-          placeholder={`https://relay.exemplo.com/api/webhooks/payment/<chave-${id}>`}
-          className="min-w-[220px] flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px] disabled:opacity-50"
-        />
-      </div>
-
-      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-        {on ? (
-          <>
-            O gateway avisa o relay; o relay repassa pra cá. No hub, esta chave tem que apontar pra{" "}
-            <code className="font-mono">{destino}</code>.
-          </>
-        ) : (
-          <>
-            Desligado: o gateway avisa direto <code className="font-mono">{destino}</code> — ele enxerga o domínio
-            da loja.
-          </>
-        )}
-        {viaPainel && (
-          <>
-            {" "}
-            <strong className="text-amber-700">
-              A {label} não aceita URL no request: cadastre a de cima no painel dela.
-            </strong>
-          </>
-        )}
-      </p>
+    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+      <button
+        onClick={onToggle}
+        disabled={disabled || (!on && !temUrl)}
+        title={!temUrl ? "Cole a URL do relay lá em cima primeiro" : undefined}
+        className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold transition-colors disabled:opacity-40 ${
+          on ? "bg-violet-600 text-white" : "border border-border text-muted-foreground hover:bg-muted"
+        }`}
+      >
+        <Waypoints className="h-3 w-3" />
+        {on ? "relay ligado — desativar" : "relay desligado — ativar"}
+      </button>
 
       {viaPainel && (
         <button
-          onClick={() => copiar(on && url ? url : destino)}
-          className="mt-1 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground hover:bg-muted"
+          onClick={() => onCopiar(urlPraCadastrar)}
+          className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 hover:bg-amber-100"
         >
-          {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          {copiado ? "copiado" : `copiar URL pro painel da ${label}`}
+          <Copy className="h-3 w-3" />
+          copiar URL pro painel da {label}
         </button>
+      )}
+      {viaPainel && (
+        <span className="text-[10px] text-muted-foreground">
+          (a {label} não aceita URL no request — tem que cadastrar lá)
+        </span>
       )}
     </div>
   )

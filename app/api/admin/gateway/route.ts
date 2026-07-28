@@ -61,16 +61,10 @@ export async function POST(request: Request) {
 
     // Relay pedido com URL que não é https (ou vazia) seria salvo como desligado
     // sem explicação — melhor recusar e dizer o motivo.
-    const relayInvalido = GATEWAYS.filter(
-      (g) => body?.relay?.enabled?.[g.id] && !/^https:\/\/.+/i.test(String(body?.relay?.url?.[g.id] ?? "").trim())
-    )
-    if (relayInvalido.length) {
-      return NextResponse.json(
-        {
-          error: `Informe a URL https do relay de: ${relayInvalido.map((g) => g.label).join(", ")}.`,
-        },
-        { status: 400 }
-      )
+    const querRelay = GATEWAYS.some((g) => body?.relay?.enabled?.[g.id])
+    const relayUrl = String(body?.relay?.url ?? "").trim()
+    if (querRelay && !/^https:\/\/.+/i.test(relayUrl)) {
+      return NextResponse.json({ error: "Informe a URL https do relay antes de ligar." }, { status: 400 })
     }
 
     const semChave = ligados.filter((g) => !gatewayConfigured(g.id))
