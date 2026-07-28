@@ -12,7 +12,7 @@ import {
   kvConfigured,
 } from "@/lib/relay";
 import { usingSeparateKv, relayKvDiag } from "@/lib/relay-kv";
-import { getActiveGateway } from "@/lib/gateways/active";
+import { GATEWAYS, RELAY_IN_PATH, getActiveGateway, getGatewayConfig } from "@/lib/gateways/active";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,12 @@ export async function GET() {
   if (!(await isAuthed())) {
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
-  const [targets, log, activeGateway] = await Promise.all([getTargets(), getLog(60), getActiveGateway()]);
+  const [targets, log, activeGateway, gatewayConfig] = await Promise.all([
+    getTargets(),
+    getLog(60),
+    getActiveGateway(),
+    getGatewayConfig(),
+  ]);
   const globalSecret = (await getGlobalSecret()) || null;
   return NextResponse.json({
     kvOk: kvConfigured(),
@@ -30,14 +35,16 @@ export async function GET() {
     globalSecret,
     targets,
     log,
-    // Esta loja COMO CLIENTE de um relay externo (o que a v0 mostra).
-    // O relay é EXCLUSIVO da Pagou.ai — a URL destino é sempre o webhook dela.
+    // Esta loja COMO CLIENTE de um relay externo. A URL destino é a PORTA ÚNICA
+    // (/api/webhooks/relay-in): serve os três gateways, então basta um cadastro
+    // no hub. Quais gateways usam o relay é decidido no card "Gateways".
     client: {
       activeGateway,
-      pagouActive: activeGateway === "pagou",
-      webhookPath: "/api/webhooks/pagouai",
+      relayGateways: GATEWAYS.filter((g) => gatewayConfig.relay.enabled[g.id]).map((g) => g.label),
+      webhookPath: RELAY_IN_PATH,
       relaySecret: (process.env.RELAY_SECRET || "").trim(),
-      notifyOverride: (process.env.NOTIFY_URL_OVERRIDE || "").trim(),
+      // A URL do relay agora mora na config (painel), com a env como fallback.
+      notifyOverride: gatewayConfig.relay.url || (process.env.NOTIFY_URL_OVERRIDE || "").trim(),
     },
   });
 }

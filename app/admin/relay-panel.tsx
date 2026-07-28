@@ -30,10 +30,13 @@ type RelayEvent = {
   forwarded: boolean
   forwardStatus?: number
   error?: string
+  payload?: string // corpo cru recebido do gateway (truncado no servidor)
+  response?: string // resposta da loja de trás (truncada no servidor)
 }
 type ClientCfg = {
   activeGateway: string
-  pagouActive: boolean
+  /** Rótulos dos gateways que estão com o relay ligado (card "Gateways"). */
+  relayGateways: string[]
   webhookPath: string
   relaySecret: string
   notifyOverride: string
@@ -363,13 +366,14 @@ function ClientRelayPanel({ cfg, origin }: { cfg: ClientCfg; origin: string }) {
   const destUrl = origin ? `${origin}${cfg.webhookPath}` : cfg.webhookPath
   const secret = cfg.relaySecret
   const notify = cfg.notifyOverride
-  const envBlock = `NOTIFY_URL_OVERRIDE=${notify || "<url-do-relay>"}\nRELAY_SECRET=${secret || "<segredo-do-relay>"}`
+  const envBlock = `RELAY_SECRET=${secret || "<segredo-do-relay>"}`
   const secretOk = !!secret
   const notifyOk = !!notify
+  const ligados = cfg.relayGateways ?? []
 
   return (
     <CollapsibleCard
-      title="Esta loja como cliente do relay (Pagou.ai)"
+      title="Esta loja como cliente do relay"
       icon={<Radio className="h-4 w-4 text-primary" />}
       headerRight={
         <span
@@ -377,16 +381,21 @@ function ClientRelayPanel({ cfg, origin }: { cfg: ClientCfg; origin: string }) {
             secretOk && notifyOk ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
           }`}
         >
-          {secretOk && notifyOk ? "Enviando via relay ✓" : "Relay não ativado"}
+          {secretOk && notifyOk && ligados.length ? "Enviando via relay ✓" : "Relay não ativado"}
         </span>
       }
     >
       <p className="mb-3 text-[11px] text-muted-foreground">
-        O relay é exclusivo da <strong className="text-foreground">Pagou.ai</strong>: ele recebe o webhook dela e repassa
-        pra esta loja, escondendo o domínio real do gateway.
-        {!cfg.pagouActive && (
+        O relay recebe o webhook do gateway e repassa pra esta loja, escondendo o domínio real. A URL abaixo é a{" "}
+        <strong className="text-foreground">porta única</strong>: serve os três gateways, então basta{" "}
+        <strong className="text-foreground">um cadastro no hub</strong>.
+        {ligados.length ? (
+          <span className="ml-1 font-semibold text-emerald-700">
+            Ligado agora em: {ligados.join(", ")}.
+          </span>
+        ) : (
           <span className="ml-1 font-semibold text-amber-700">
-            Gateway ativo agora é {gwLabel[cfg.activeGateway] ?? cfg.activeGateway} — o relay só age quando a Pagou.ai está ativa.
+            Nenhum gateway está usando o relay — ligue no card “Gateways de pagamento”, lá em cima.
           </span>
         )}
       </p>
@@ -412,9 +421,9 @@ function ClientRelayPanel({ cfg, origin }: { cfg: ClientCfg; origin: string }) {
 
       {/* 1. dados pro relay */}
       <div className="mb-3 rounded-xl border border-border bg-background p-3">
-        <div className="mb-2 text-xs font-bold text-foreground">1. Configurar no relay como destino</div>
+        <div className="mb-2 text-xs font-bold text-foreground">1. Configurar no hub como destino desta loja</div>
         <div className="space-y-2.5">
-          <Field label="URL destino (webhook desta loja)" value={destUrl} />
+          <Field label="URL destino — porta única (serve os 3 gateways)" value={destUrl} />
           <Field label="Método" value="POST" />
           <Field label="Header" value="x-relay-secret" />
           <Field label="Valor do header (RELAY_SECRET)" value={secret || "— defina RELAY_SECRET no ambiente —"} />
@@ -424,28 +433,35 @@ function ClientRelayPanel({ cfg, origin }: { cfg: ClientCfg; origin: string }) {
 
       {/* 2. notify que vai no gateway */}
       <div className="mb-3 rounded-xl border border-border bg-background p-3">
-        <div className="mb-2 text-xs font-bold text-foreground">2. URL que vai no gateway</div>
-        <Field label="NOTIFY_URL atual (NOTIFY_URL_OVERRIDE)" value={notify || "— não definido: o gateway veria o domínio desta loja —"} />
+        <div className="mb-2 text-xs font-bold text-foreground">2. URL do relay que vai no gateway</div>
+        <Field
+          label="URL do relay (cole no card “Gateways de pagamento”)"
+          value={notify || "— não definida: o gateway veria o domínio desta loja —"}
+        />
         <p
           className={`mt-2 rounded-lg px-3 py-2 text-[11px] ${
             notifyOk ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
           }`}
         >
           {notifyOk
-            ? "NOTIFY_URL_OVERRIDE aponta pro relay. O gateway só vê o domínio do relay, nunca o desta loja."
-            : "Defina NOTIFY_URL_OVERRIDE com a URL do relay — senão o gateway recebe o domínio real desta loja."}
+            ? "Esta é a URL que o hub te deu. Quem está ligado nela avisa o relay, e o gateway nunca vê o domínio da loja."
+            : "Pegue a URL no painel do hub e cole no card “Gateways de pagamento” — sem ela, o gateway recebe o domínio real desta loja."}
         </p>
       </div>
 
       {/* 3. bloco .env */}
       <div className="rounded-xl border border-border bg-background p-3">
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-bold text-foreground">3. Envs esperadas na produção</span>
+          <span className="text-xs font-bold text-foreground">3. Env esperada na produção</span>
           <CopyBtn text={envBlock} label="Copiar .env" />
         </div>
         <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-[11px] leading-relaxed text-foreground">
           {envBlock}
         </pre>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Só o segredo vai em variável de ambiente (e tem que ser igual ao do hub). A URL do relay ficou no painel —
+          trocar não precisa mais de deploy.
+        </p>
       </div>
     </CollapsibleCard>
   )
