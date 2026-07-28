@@ -1,10 +1,33 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckSquare, Download, ExternalLink, Pencil, Plus, Square, Tag, Trash2, X } from "lucide-react"
+import {
+  ArrowDownUp,
+  CheckSquare,
+  Download,
+  ExternalLink,
+  Pencil,
+  Plus,
+  Square,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react"
 import type { Catalog, ProductRow } from "@/lib/catalog"
 import { RichTextEditor } from "./rich-text-editor"
 import { BulkPriceModal } from "./bulk-price-modal"
+
+// Ordenação da lista de produtos no painel.
+type Ordem = "padrao" | "precoDesc" | "precoAsc" | "nomeAsc" | "descontoDesc" | "problemas"
+
+const ORDENS: { id: Ordem; label: string }[] = [
+  { id: "padrao", label: "Ordem do catálogo" },
+  { id: "precoDesc", label: "Preço: maior primeiro" },
+  { id: "precoAsc", label: "Preço: menor primeiro" },
+  { id: "nomeAsc", label: "Nome: A → Z" },
+  { id: "descontoDesc", label: "Maior desconto %" },
+  { id: "problemas", label: "Precisa de atenção" },
+]
 
 const brl = (v: string | number) => {
   const n = Number(v)
@@ -59,6 +82,7 @@ export function ProductsPanel({
   // Seleção em massa (ids). Set pra alternar sem varrer array a cada clique.
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [bulkAberto, setBulkAberto] = useState(false)
+  const [ordem, setOrdem] = useState<Ordem>("padrao")
 
   function alternar(id: string) {
     setSelecionados((atual) => {
@@ -92,13 +116,48 @@ export function ProductsPanel({
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return catalog.rows
-    return catalog.rows.filter((r) =>
-      [r[columns.name], r[idHeader], r[columns.category], r[columns.slug]]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q)),
-    )
-  }, [catalog.rows, query, columns, idHeader])
+    const filtradas = !q
+      ? catalog.rows
+      : catalog.rows.filter((r) =>
+          [r[columns.name], r[idHeader], r[columns.category], r[columns.slug]]
+            .filter(Boolean)
+            .some((v) => String(v).toLowerCase().includes(q)),
+        )
+
+    if (ordem === "padrao") return filtradas
+
+    const preco = (r: ProductRow) => Number(r[columns.price]) || 0
+    const de = (r: ProductRow) => Number(r[columns.compareAtPrice]) || 0
+    // Desconto real: só conta quando o riscado é maior que o preço.
+    const desconto = (r: ProductRow) => {
+      const p = preco(r)
+      const d = de(r)
+      return d > p && p > 0 ? (1 - p / d) * 100 : 0
+    }
+
+    // Cópia: não reordenar o catálogo original (o estado é compartilhado).
+    const lista = [...filtradas]
+    switch (ordem) {
+      case "precoDesc":
+        return lista.sort((a, b) => preco(b) - preco(a))
+      case "precoAsc":
+        return lista.sort((a, b) => preco(a) - preco(b))
+      case "nomeAsc":
+        return lista.sort((a, b) =>
+          String(a[columns.name] ?? "").localeCompare(String(b[columns.name] ?? ""), "pt-BR"),
+        )
+      case "descontoDesc":
+        return lista.sort((a, b) => desconto(b) - desconto(a))
+      case "problemas":
+        // Preço zerado primeiro, depois sem riscado, depois sem foto — os
+        // produtos que precisam de atenção sobem pro topo da lista.
+        const peso = (r: ProductRow) =>
+          (preco(r) <= 0 ? 100 : 0) + (de(r) <= preco(r) ? 10 : 0) + (!r[columns.image] ? 1 : 0)
+        return lista.sort((a, b) => peso(b) - peso(a))
+      default:
+        return filtradas
+    }
+  }, [catalog.rows, query, columns, idHeader, ordem])
 
   const visibleRows = rows.slice(0, 300)
 
@@ -265,12 +324,29 @@ export function ProductsPanel({
     <div>
       {/* Barra de ações */}
       <div className="mb-4 space-y-3">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar por nome, id, categoria…"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
-        />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nome, id, categoria…"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+          />
+          <div className="flex items-center gap-1.5">
+            <ArrowDownUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <select
+              value={ordem}
+              onChange={(e) => setOrdem(e.target.value as Ordem)}
+              aria-label="Ordenar a lista"
+              className="w-full rounded-lg border border-border bg-background px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 sm:w-auto"
+            >
+              {ORDENS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <span>
