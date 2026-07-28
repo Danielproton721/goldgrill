@@ -1,8 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, CreditCard, ChevronUp, ChevronDown, AlertTriangle, Waypoints, Copy, Check } from "lucide-react"
+import {
+  Loader2,
+  CreditCard,
+  ChevronUp,
+  ChevronDown,
+  AlertTriangle,
+  Waypoints,
+  Copy,
+  Check,
+  CheckCircle2,
+} from "lucide-react"
 import type { GatewayConfig, GatewayId } from "@/lib/gateways/active"
+import { FlowDiagram } from "./flow-diagram"
 
 export function GatewaySwitch({
   initial,
@@ -33,6 +44,13 @@ export function GatewaySwitch({
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [copiadoDestino, setCopiadoDestino] = useState(false)
+  // Qual item acabou de mudar de posição/estado — ganha um halo que apaga sozinho.
+  const [destacado, setDestacado] = useState<GatewayId | null>(null)
+
+  function destacar(id: GatewayId) {
+    setDestacado(id)
+    setTimeout(() => setDestacado((atual) => (atual === id ? null : atual)), 900)
+  }
 
   const principal = config.order.find((id) => config.enabled[id]) ?? null
   const fila = config.order.filter((id) => config.enabled[id] && id !== principal)
@@ -81,6 +99,7 @@ export function GatewaySwitch({
       setMsg({ ok: false, text: "Deixe pelo menos um ligado — senão o checkout para." })
       return
     }
+    destacar(id)
     save({ ...config, enabled })
   }
 
@@ -91,6 +110,7 @@ export function GatewaySwitch({
       setMsg({ ok: false, text: "Cole a URL https do relay lá em cima antes de ligar." })
       return
     }
+    destacar(id)
     save({ ...config, relay: { url, enabled: { ...config.relay.enabled, [id]: ligando } } })
   }
 
@@ -100,6 +120,7 @@ export function GatewaySwitch({
     const j = i + dir
     if (i < 0 || j < 0 || j >= order.length) return
     ;[order[i], order[j]] = [order[j], order[i]]
+    destacar(id)
     save({ ...config, order })
   }
 
@@ -115,6 +136,16 @@ export function GatewaySwitch({
           </p>
         </div>
       </div>
+
+      {principal && (
+        <FlowDiagram
+          principal={labels[principal]}
+          reservas={fila.map((id) => labels[id])}
+          relayLigado={config.relay.enabled[principal]}
+          relayViaPainel={relayViaPainel[principal]}
+          temChave={configured[principal]}
+        />
+      )}
 
       {/* Relay: UMA URL pros três. No hub basta um cadastro apontando pra
           /api/webhooks/relay-in, que descobre o gateway e despacha. */}
@@ -156,9 +187,9 @@ export function GatewaySwitch({
           return (
             <li
               key={id}
-              className={`flex items-start gap-3 rounded-lg border p-2.5 ${
+              className={`flex items-start gap-3 rounded-lg border p-2.5 transition-colors duration-200 ${
                 ehPrincipal ? "border-emerald-300 bg-emerald-50/60" : "border-border"
-              }`}
+              } ${destacado === id ? "gg-destaque" : ""}`}
             >
               <div className="flex flex-col pt-0.5">
                 <button
@@ -250,15 +281,29 @@ export function GatewaySwitch({
           qualquer um que descobrir a URL.
         </p>
       )}
-      {saving && (
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" /> salvando…
-        </p>
-      )}
+      {/* Um lugar só pro estado da ação: salvando → resultado. Sem empilhar avisos. */}
+      <div className="mt-2 min-h-[20px]" aria-live="polite">
+        {saving ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            salvando…
+          </p>
+        ) : (
+          msg && (
+            <p
+              className={`gg-pop flex items-center gap-1.5 text-xs ${
+                msg.ok ? "text-emerald-700" : "text-red-600"
+              }`}
+            >
+              {msg.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+              {msg.text}
+            </p>
+          )
+        )}
+      </div>
       {!kvOk && (
-        <p className="mt-2 text-xs text-amber-700">KV (Upstash) não configurado — a troca não pode ser salva.</p>
+        <p className="mt-1 text-xs text-amber-700">KV (Upstash) não configurado — a troca não pode ser salva.</p>
       )}
-      {msg && <p className={`mt-2 text-xs ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
     </div>
   )
 }

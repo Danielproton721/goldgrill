@@ -184,6 +184,56 @@
   .gold-flow { animation: none; }
 }
 
+/* ── Painel /admin: diagrama de fluxo do pagamento ──────────────────────────
+   Uma luz percorre a seta mostrando PRA ONDE a informação vai. Devagar (3,2s),
+   pela mesma técnica da etiqueta dourada (background-position): a ideia é
+   orientar, não chamar atenção. */
+@keyframes gg-flow-line {
+  from { background-position: -55% 0; }
+  to { background-position: 155% 0; }
+}
+.gg-flow-line {
+  background-image: linear-gradient(
+    90deg,
+    transparent 42%,
+    var(--gg-flow-color, #b98a2e) 50%,
+    transparent 58%
+  );
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: gg-flow-line 3.2s linear infinite;
+}
+
+/* Confirmação discreta: aparece crescendo de leve e fica. */
+@keyframes gg-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.gg-pop {
+  animation: gg-pop 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Item que acabou de mudar de posição: um halo que apaga sozinho. */
+@keyframes gg-destaque {
+  from { box-shadow: 0 0 0 3px rgba(185, 138, 46, 0.45); }
+  to { box-shadow: 0 0 0 3px rgba(185, 138, 46, 0); }
+}
+.gg-destaque {
+  animation: gg-destaque 900ms cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gg-flow-line,
+  .gg-pop,
+  .gg-destaque {
+    animation: none;
+  }
+  /* Sem movimento a seta continua colorida — a rota segue legível. */
+  .gg-flow-line {
+    background-image: none;
+  }
+}
+
 /* Hide scrollbar for category filter */
 .scrollbar-hide {
   -ms-overflow-style: none;
