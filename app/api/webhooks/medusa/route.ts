@@ -6,6 +6,7 @@ import { dispatchOrderEmailOnce } from "@/lib/send-order-email"
 import { markOrderPaid, isOrderPaid } from "@/lib/orders"
 import { scheduleShippedNotify } from "@/lib/qstash"
 import { getStatusMedusa, verifyMedusaSignature } from "@/lib/gateways/medusa"
+import { relayEnabledFor } from "@/lib/gateways/active"
 
 export const dynamic = "force-dynamic"
 
@@ -40,6 +41,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  // Relay ligado pra Medusa (no /admin): só aceita o que passou pelo relay —
+  // ele injeta x-relay-secret e repassa os headers originais, então a assinatura
+  // da Medusa continua valendo logo abaixo. Sem RELAY_SECRET no ambiente não dá
+  // pra validar, então aceita (não derruba o fluxo antes do relay estar de pé).
+  const relaySecret = process.env.RELAY_SECRET?.trim()
+  if (relaySecret && (await relayEnabledFor("medusa"))) {
+    if (request.headers.get("x-relay-secret") !== relaySecret) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 })
+    }
+  }
+
   const rawBody = await request.text()
 
   // Assinatura HMAC (v2). null = MEDUSAPAY_WEBHOOK_SECRET não configurado →

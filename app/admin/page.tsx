@@ -2,7 +2,14 @@ import { adminConfig } from "@/admin.config"
 import { adminConfigured, isAuthed } from "@/lib/admin-auth"
 import { kvConfigured, listRecentOrders } from "@/lib/orders"
 import { getMergedCatalog, pendingChangesCount } from "@/lib/catalog"
-import { GATEWAYS, gatewayConfigured, getGatewayConfig, type GatewayId } from "@/lib/gateways/active"
+import {
+  GATEWAYS,
+  RELAY_VIA_PAINEL,
+  WEBHOOK_PATH,
+  gatewayConfigured,
+  getGatewayConfig,
+  type GatewayId,
+} from "@/lib/gateways/active"
 import { AdminLogin } from "./admin-login"
 import { AdminShell } from "./admin-shell"
 import { GatewaySwitch } from "./gateway-switch"
@@ -53,6 +60,10 @@ export default async function AdminPage() {
           initial={gatewayConfig}
           configured={gatewayConfigured_}
           labels={gatewayLabels}
+          webhookPath={WEBHOOK_PATH}
+          relayViaPainel={RELAY_VIA_PAINEL}
+          appBaseUrl={(process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")}
+          relaySecretOk={Boolean(process.env.RELAY_SECRET)}
           kvOk={kvOk}
         />
       }

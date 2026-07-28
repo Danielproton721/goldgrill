@@ -10,8 +10,14 @@ import { buildOrderCode } from "@/lib/order-code";
 import { saveOrder } from "@/lib/order-store";
 import { indexOrder } from "@/lib/orders";
 import type { OrderEmailItem } from "@/lib/order-email";
-import type { GatewayId } from "@/lib/gateways/active";
-import { gatewayConfigured, getGatewayChain, markTxGateway } from "@/lib/gateways/active";
+import type { GatewayConfig, GatewayId } from "@/lib/gateways/active";
+import {
+  WEBHOOK_PATH,
+  gatewayConfigured,
+  getGatewayChain,
+  getGatewayConfig,
+  markTxGateway,
+} from "@/lib/gateways/active";
 import { createPixMedusa } from "@/lib/gateways/medusa";
 import { createPixCenturion } from "@/lib/gateways/centurion";
 import { qstashConfigured, scheduleDelayedCall, abandonedSig } from "@/lib/qstash";
@@ -74,13 +80,8 @@ async function persistNewOrder(
   return orderCode;
 }
 
-function getPublicNotifyUrl(request: Request) {
-  // Relay opcional: se NOTIFY_URL_OVERRIDE estiver definida, o notify_url aponta
-  // pra ela (o relay num domínio neutro), sem revelar o domínio da loja ao
-  // gateway. Sem a env, mantém o comportamento original (domínio da própria loja).
-  const override = process.env.NOTIFY_URL_OVERRIDE?.trim();
-  if (override) return override;
-
+// Domínio público desta loja (usado quando o relay do gateway está desligado).
+function getOwnWebhookUrl(request: Request, path: string) {
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || url.host;
   const hostname = host.split(":")[0]?.toLowerCase() || "";
@@ -98,7 +99,14 @@ function getPublicNotifyUrl(request: Request) {
 
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const proto = forwardedProto === "http" || forwardedProto === "https" ? forwardedProto : url.protocol.replace(":", "");
-  return `${proto === "http" ? "https" : proto}://${host}/api/webhooks/pagouai`;
+  return `${proto === "http" ? "https" : proto}://${host}${path}`;
+}
+
+// Pra onde o gateway avisa o pagamento: o relay dele (se ligado no /admin) ou o
+// domínio próprio desta loja.
+async function resolveNotifyUrl(request: Request, id: GatewayId, relay: GatewayConfig["relay"]) {
+  if (relay.enabled[id] && relay.url[id]) return relay.url[id];
+  return getOwnWebhookUrl(request, WEBHOOK_PATH[id]);
 }
 
 export async function POST(request: Request) {
@@ -179,10 +187,13 @@ export async function POST(request: Request) {
   // prioridade definida no /admin. Se um estiver fora (chave inválida,
   // adquirente caído, timeout), passa pro próximo sozinho. Erro de dado do
   // comprador (400) não tenta outro — trocar de gateway não conserta CPF. ──
-  const chain = await getGatewayChain();
+  const gwConfig = await getGatewayConfig();
+  const chain = gwConfig.order.filter((id) => gwConfig.enabled[id]);
+  if (!chain.length) chain.push(...(await getGatewayChain()));
   const appBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  // O relay é EXCLUSIVO da Pagou.ai (o notify_url dela usa getPublicNotifyUrl,
-  // que lê NOTIFY_URL_OVERRIDE). Medusa e Centurion batem direto no domínio.
+  // Relay por gateway (ligado no /admin): o aviso de pagamento vai pro relay em
+  // vez do domínio da loja. A Medusa é exceção — a v2 não aceita URL no request,
+  // então lá o relay é cadastrado no painel dela (o painel mostra qual URL usar).
 
   // "ok" → resposta pronta; "fatal" → devolve sem tentar outro gateway;
   // "retry" → gateway fora do ar, tenta o próximo da fila.
@@ -251,7 +262,9 @@ export async function POST(request: Request) {
   }
 
   async function attemptCenturion(): Promise<Attempt> {
-    const postbackUrl = appBaseUrl ? `${appBaseUrl}/api/webhooks/centurion` : undefined;
+    const postbackUrl =
+      (await resolveNotifyUrl(request, "centurion", gwConfig.relay)) ??
+      (appBaseUrl ? `${appBaseUrl}${WEBHOOK_PATH.centurion}` : undefined);
     const a = body?.order?.address;
     const address =
       a && a.cep
@@ -349,7 +362,7 @@ export async function POST(request: Request) {
     ],
   };
 
-  const notifyUrl = getPublicNotifyUrl(request);
+  const notifyUrl = await resolveNotifyUrl(request, "pagou", gwConfig.relay);
   if (notifyUrl) {
     Object.assign(payload, { notify_url: notifyUrl });
   }

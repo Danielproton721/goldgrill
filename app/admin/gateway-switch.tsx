@@ -1,19 +1,29 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, CreditCard, ChevronUp, ChevronDown, AlertTriangle } from "lucide-react"
+import { Loader2, CreditCard, ChevronUp, ChevronDown, AlertTriangle, Waypoints, Copy, Check } from "lucide-react"
 import type { GatewayConfig, GatewayId } from "@/lib/gateways/active"
 
 export function GatewaySwitch({
   initial,
   configured,
   labels,
+  webhookPath,
+  relayViaPainel,
+  appBaseUrl,
+  relaySecretOk,
   kvOk,
 }: {
   initial: GatewayConfig
   /** Quais gateways têm chave no ambiente (vindo do servidor). */
   configured: Record<GatewayId, boolean>
   labels: Record<GatewayId, string>
+  /** Endpoint desta loja que recebe o webhook de cada gateway. */
+  webhookPath: Record<GatewayId, string>
+  /** Gateways cuja URL de webhook é cadastrada no painel deles (Medusa v2). */
+  relayViaPainel: Record<GatewayId, boolean>
+  appBaseUrl: string
+  relaySecretOk: boolean
   kvOk: boolean
 }) {
   const [config, setConfig] = useState<GatewayConfig>(initial)
@@ -62,6 +72,23 @@ export function GatewaySwitch({
     save({ ...config, enabled })
   }
 
+  function setRelayUrl(id: GatewayId, url: string) {
+    setConfig((c) => ({ ...c, relay: { ...c.relay, url: { ...c.relay.url, [id]: url } } }))
+  }
+
+  function toggleRelay(id: GatewayId) {
+    const ligando = !config.relay.enabled[id]
+    const url = (config.relay.url[id] || "").trim()
+    if (ligando && !/^https:\/\/.+/i.test(url)) {
+      setMsg({ ok: false, text: `Cole a URL https do relay de ${labels[id]} antes de ligar.` })
+      return
+    }
+    save({
+      ...config,
+      relay: { url: { ...config.relay.url, [id]: url }, enabled: { ...config.relay.enabled, [id]: ligando } },
+    })
+  }
+
   function move(id: GatewayId, dir: -1 | 1) {
     const order = [...config.order]
     const i = order.indexOf(id)
@@ -92,11 +119,11 @@ export function GatewaySwitch({
           return (
             <li
               key={id}
-              className={`flex items-center gap-3 rounded-lg border p-2.5 ${
+              className={`flex items-start gap-3 rounded-lg border p-2.5 ${
                 ehPrincipal ? "border-emerald-300 bg-emerald-50/60" : "border-border"
               }`}
             >
-              <div className="flex flex-col">
+              <div className="flex flex-col pt-0.5">
                 <button
                   onClick={() => move(id, -1)}
                   disabled={!kvOk || saving || i === 0}
@@ -140,6 +167,18 @@ export function GatewaySwitch({
                     Ligado sem chave — vai ser pulado na hora de cobrar.
                   </p>
                 )}
+
+                <RelayRow
+                  id={id}
+                  label={labels[id]}
+                  on={config.relay.enabled[id]}
+                  url={config.relay.url[id] || ""}
+                  viaPainel={relayViaPainel[id]}
+                  destino={`${appBaseUrl || "https://seu-dominio"}${webhookPath[id]}`}
+                  disabled={!kvOk || saving}
+                  onUrl={(v) => setRelayUrl(id, v)}
+                  onToggle={() => toggleRelay(id)}
+                />
               </div>
 
               {/* Interruptor */}
@@ -149,7 +188,7 @@ export function GatewaySwitch({
                 aria-label={`${on ? "Desligar" : "Ligar"} ${labels[id]}`}
                 onClick={() => toggle(id)}
                 disabled={!kvOk || saving}
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
                   on ? "bg-emerald-600" : "bg-muted-foreground/30"
                 }`}
               >
@@ -164,6 +203,13 @@ export function GatewaySwitch({
         })}
       </ul>
 
+      {config.order.some((id) => config.relay.enabled[id]) && !relaySecretOk && (
+        <p className="mt-2 flex items-center gap-1 text-xs text-amber-700">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          Relay ligado, mas sem <code className="font-mono">RELAY_SECRET</code> no ambiente — o webhook aceita
+          qualquer um que descobrir a URL.
+        </p>
+      )}
       {saving && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> salvando…
@@ -173,6 +219,96 @@ export function GatewaySwitch({
         <p className="mt-2 text-xs text-amber-700">KV (Upstash) não configurado — a troca não pode ser salva.</p>
       )}
       {msg && <p className={`mt-2 text-xs ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
+    </div>
+  )
+}
+
+// Linha do relay de UM gateway: liga/desliga + a URL do relay dele.
+// Cada gateway precisa da SUA URL — no hub, cada chave repassa pra um endpoint
+// diferente desta loja (/api/webhooks/pagouai, /medusa, /centurion).
+function RelayRow({
+  id,
+  label,
+  on,
+  url,
+  viaPainel,
+  destino,
+  disabled,
+  onUrl,
+  onToggle,
+}: {
+  id: GatewayId
+  label: string
+  on: boolean
+  url: string
+  viaPainel: boolean
+  destino: string
+  disabled: boolean
+  onUrl: (v: string) => void
+  onToggle: () => void
+}) {
+  const [copiado, setCopiado] = useState(false)
+
+  function copiar(texto: string) {
+    navigator.clipboard?.writeText(texto)
+    setCopiado(true)
+    setTimeout(() => setCopiado(false), 1500)
+  }
+
+  return (
+    <div className="mt-2 rounded-lg bg-muted/40 p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Waypoints className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[11px] font-bold text-muted-foreground">RELAY</span>
+        <button
+          onClick={onToggle}
+          disabled={disabled}
+          className={`rounded px-2 py-0.5 text-[11px] font-bold transition-colors disabled:opacity-50 ${
+            on ? "bg-violet-600 text-white" : "border border-border text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          {on ? "ligado — desativar" : "desligado — ativar"}
+        </button>
+        <input
+          value={url}
+          onChange={(e) => onUrl(e.target.value)}
+          disabled={disabled}
+          placeholder={`https://relay.exemplo.com/api/webhooks/payment/<chave-${id}>`}
+          className="min-w-[220px] flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px] disabled:opacity-50"
+        />
+      </div>
+
+      <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+        {on ? (
+          <>
+            O gateway avisa o relay; o relay repassa pra cá. No hub, esta chave tem que apontar pra{" "}
+            <code className="font-mono">{destino}</code>.
+          </>
+        ) : (
+          <>
+            Desligado: o gateway avisa direto <code className="font-mono">{destino}</code> — ele enxerga o domínio
+            da loja.
+          </>
+        )}
+        {viaPainel && (
+          <>
+            {" "}
+            <strong className="text-amber-700">
+              A {label} não aceita URL no request: cadastre a de cima no painel dela.
+            </strong>
+          </>
+        )}
+      </p>
+
+      {viaPainel && (
+        <button
+          onClick={() => copiar(on && url ? url : destino)}
+          className="mt-1 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground hover:bg-muted"
+        >
+          {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copiado ? "copiado" : `copiar URL pro painel da ${label}`}
+        </button>
+      )}
     </div>
   )
 }

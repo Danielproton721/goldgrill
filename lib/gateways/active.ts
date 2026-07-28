@@ -20,6 +20,28 @@ export type GatewayConfig = {
   /** Ordem de prioridade: o primeiro LIGADO é quem processa. */
   order: GatewayId[]
   enabled: Record<GatewayId, boolean>
+  /**
+   * Relay por gateway: quando ligado, o aviso de pagamento vai pro relay (que
+   * repassa pra cá) em vez de expor o domínio da loja ao gateway.
+   * `url` é o endereço do relay daquele gateway — precisa ser UMA por gateway,
+   * porque cada chave do hub repassa pra um endpoint diferente daqui.
+   */
+  relay: { enabled: Record<GatewayId, boolean>; url: Record<GatewayId, string> }
+}
+
+/** Endpoint desta loja que recebe o webhook de cada gateway. */
+export const WEBHOOK_PATH: Record<GatewayId, string> = {
+  pagou: "/api/webhooks/pagouai",
+  medusa: "/api/webhooks/medusa",
+  centurion: "/api/webhooks/centurion",
+}
+
+// A Medusa v2 não aceita URL de webhook no request — ela é cadastrada no painel
+// deles. Por isso o relay dela não é "enviado", é só a URL que o dono cola lá.
+export const RELAY_VIA_PAINEL: Record<GatewayId, boolean> = {
+  pagou: false,
+  medusa: true,
+  centurion: false,
 }
 
 const CONFIG_KEY = "gateway-config"
@@ -41,6 +63,20 @@ export function gatewayConfigured(id: GatewayId): boolean {
   return Boolean(process.env.CENTURION_API_KEY)
 }
 
+function envNotifyUrl(): string {
+  return (process.env.NOTIFY_URL_OVERRIDE || "").trim()
+}
+
+function defaultRelay(): GatewayConfig["relay"] {
+  // Migração: quem já usava o relay via NOTIFY_URL_OVERRIDE (hoje só a Pagou.ai)
+  // continua usando, com a mesma URL. Os outros nascem desligados.
+  const url = envNotifyUrl()
+  return {
+    enabled: { pagou: Boolean(url), medusa: false, centurion: false },
+    url: { pagou: url, medusa: "", centurion: "" },
+  }
+}
+
 function defaultConfig(active: GatewayId = DEFAULT): GatewayConfig {
   const order = [active, ...GATEWAYS.map((g) => g.id).filter((id) => id !== active)]
   // Só o ativo nasce ligado: ligar os outros sozinho mandaria tráfego pra
@@ -48,6 +84,7 @@ function defaultConfig(active: GatewayId = DEFAULT): GatewayConfig {
   return {
     order,
     enabled: { pagou: false, medusa: false, centurion: false, [active]: true } as Record<GatewayId, boolean>,
+    relay: defaultRelay(),
   }
 }
 
@@ -71,7 +108,16 @@ function sanitize(raw: any, fallbackActive: GatewayId = DEFAULT): GatewayConfig 
   // Nunca deixa a loja sem nenhum gateway: sem ninguém ligado, volta o padrão.
   if (!GATEWAYS.some((g) => enabled[g.id])) return base
 
-  return { order, enabled }
+  const relay = defaultRelay()
+  for (const g of GATEWAYS) {
+    const url = String(raw?.relay?.url?.[g.id] ?? "").trim()
+    // Só https: uma URL de relay em http vazaria o webhook em texto puro.
+    relay.url[g.id] = /^https:\/\//i.test(url) ? url.replace(/\/$/, "") : ""
+    // Relay ligado sem URL não faz nada — trata como desligado.
+    relay.enabled[g.id] = Boolean(raw?.relay?.enabled?.[g.id]) && Boolean(relay.url[g.id])
+  }
+
+  return { order, enabled, relay }
 }
 
 export async function getGatewayConfig(): Promise<GatewayConfig> {
@@ -88,7 +134,10 @@ export async function getGatewayConfig(): Promise<GatewayConfig> {
 }
 
 export async function setGatewayConfig(raw: unknown): Promise<GatewayConfig> {
-  const cfg = sanitize(raw)
+  // Merge com o que já está salvo: um POST que manda só {order, enabled} não
+  // pode apagar a configuração de relay (e vice-versa).
+  const atual = await getGatewayConfig()
+  const cfg = sanitize({ ...atual, ...(raw as Record<string, unknown>) })
   await kvSetJSON(CONFIG_KEY, cfg, TTL)
   // Mantém a chave antiga em dia (nada mais lê, mas evita surpresa num rollback).
   await kvSetJSON(LEGACY_KEY, cfg.order.find((id) => cfg.enabled[id]) ?? DEFAULT, TTL).catch(() => {})
@@ -106,6 +155,25 @@ export async function getGatewayChain(): Promise<GatewayId[]> {
 export async function getActiveGateway(): Promise<GatewayId> {
   const chain = await getGatewayChain()
   return chain[0] ?? DEFAULT
+}
+
+/**
+ * URL pra onde o gateway deve avisar o pagamento:
+ *  • relay ligado  → a URL do relay daquele gateway (o gateway nunca vê a loja);
+ *  • relay off     → o endpoint desta loja, no domínio próprio.
+ * Devolve null quando não há domínio público (localhost) e o relay está off.
+ */
+export async function getNotifyUrl(id: GatewayId, appBaseUrl: string): Promise<string | null> {
+  const cfg = await getGatewayConfig()
+  if (cfg.relay.enabled[id] && cfg.relay.url[id]) return cfg.relay.url[id]
+  const base = (appBaseUrl || "").replace(/\/$/, "")
+  return base ? `${base}${WEBHOOK_PATH[id]}` : null
+}
+
+/** O webhook deste gateway deve exigir o header x-relay-secret? */
+export async function relayEnabledFor(id: GatewayId): Promise<boolean> {
+  const cfg = await getGatewayConfig()
+  return Boolean(cfg.relay.enabled[id])
 }
 
 /** Promove um gateway a principal (liga e joga pro topo da fila). */

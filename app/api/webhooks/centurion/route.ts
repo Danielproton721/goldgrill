@@ -6,10 +6,12 @@ import { dispatchOrderEmailOnce } from "@/lib/send-order-email"
 import { markOrderPaid } from "@/lib/orders"
 import { scheduleShippedNotify } from "@/lib/qstash"
 import { getStatusCenturion } from "@/lib/gateways/centurion"
+import { relayEnabledFor } from "@/lib/gateways/active"
 
 export const dynamic = "force-dynamic"
 
-// SEM relay: a CenturionPay bate direto aqui (postbackUrl = este endpoint).
+// A CenturionPay bate aqui direto ou via relay (ligado no /admin) — o
+// postbackUrl enviado na cobrança aponta pro que estiver configurado.
 // A doc NÃO documenta o schema do postback (página placeholder), então lemos o
 // id de vários caminhos prováveis e confirmamos o pagamento via GET status.
 function extractId(body: any): string | null {
@@ -23,7 +25,15 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  // Sem relay: a CenturionPay bate DIRETO aqui (o relay é exclusivo da Pagou.ai).
+  // Relay ligado pra Centurion (no /admin): só aceita repasses do relay, que
+  // manda x-relay-secret. Sem RELAY_SECRET no ambiente, aceita como antes.
+  const relaySecret = process.env.RELAY_SECRET?.trim()
+  if (relaySecret && (await relayEnabledFor("centurion"))) {
+    if (request.headers.get("x-relay-secret") !== relaySecret) {
+      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 })
+    }
+  }
+
   let body: any
   try {
     body = await request.json()
