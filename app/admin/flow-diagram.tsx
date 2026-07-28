@@ -83,14 +83,17 @@ export function FlowDiagram({
   principal,
   reservas,
   relayLigado,
+  relayEmOutros,
   relayViaPainel,
   temChave,
 }: {
   /** Rótulo do gateway que processa agora. */
   principal: string
-  /** Rótulos dos gateways de reserva, na ordem. */
-  reservas: string[]
+  /** Gateways de reserva, na ordem, com a situação do relay de cada um. */
+  reservas: { label: string; relay: boolean }[]
   relayLigado: boolean
+  /** Gateways que TÊM relay ligado mas não são o principal. */
+  relayEmOutros: string[]
   /** Gateway cuja URL de webhook é cadastrada no painel dele (Medusa v2). */
   relayViaPainel: boolean
   temChave: boolean
@@ -120,15 +123,33 @@ export function FlowDiagram({
         <Trilha titulo="2. Aviso de que pagou" nos={volta} cor={relayLigado ? "roxo" : "verde"} />
       </div>
 
+      {/* O erro fácil de cometer: relay ligado, mas em outro gateway. */}
+      {!relayLigado && relayEmOutros.length > 0 && (
+        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-violet-50 p-2 text-[11px] leading-relaxed text-violet-800">
+          <Waypoints className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            O relay está ligado em <strong>{relayEmOutros.join(", ")}</strong>, mas{" "}
+            <strong>não na {principal}</strong> — que é quem está processando agora. Por isso ele não aparece no
+            caminho acima. Para usar o relay aqui, clique em “relay desligado — ativar” na linha da {principal}.
+          </span>
+        </p>
+      )}
+
       {/* Fallback: só aparece quando existe reserva de verdade. */}
       {reservas.length > 0 && (
         <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/60 p-2">
           <ArrowDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             Se a <strong className="text-foreground">{principal}</strong> não responder, a{" "}
-            <strong className="text-foreground">{reservas[0]}</strong> assume no mesmo clique
-            {reservas[1] ? ` (e a ${reservas[1]} depois dela)` : ""} — o cliente continua na mesma tela, sem ver
-            erro.
+            <strong className="text-foreground">{reservas[0].label}</strong> assume no mesmo clique
+            {reservas[1] ? ` (e a ${reservas[1].label} depois dela)` : ""} — o cliente continua na mesma tela, sem
+            ver erro. Nesse caso o aviso volta{" "}
+            {reservas[0].relay ? (
+              <strong className="text-violet-700">pelo relay</strong>
+            ) : (
+              <strong className="text-foreground">direto pra loja</strong>
+            )}
+            , porque o relay é ligado por gateway.
           </p>
         </div>
       )}

@@ -140,8 +140,11 @@ export function GatewaySwitch({
       {principal && (
         <FlowDiagram
           principal={labels[principal]}
-          reservas={fila.map((id) => labels[id])}
+          reservas={fila.map((id) => ({ label: labels[id], relay: config.relay.enabled[id] }))}
           relayLigado={config.relay.enabled[principal]}
+          relayEmOutros={config.order
+            .filter((id) => config.relay.enabled[id] && id !== principal)
+            .map((id) => labels[id])}
           relayViaPainel={relayViaPainel[principal]}
           temChave={configured[principal]}
         />
@@ -165,6 +168,23 @@ export function GatewaySwitch({
             className="min-w-[240px] flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px] disabled:opacity-50"
           />
         </div>
+        {/* Ligar um por um é onde se esquece — este botão liga a fila inteira. */}
+        {config.relay.url && config.order.some((id) => !config.relay.enabled[id]) && (
+          <button
+            onClick={() =>
+              save({
+                ...config,
+                relay: { url: config.relay.url, enabled: { pagou: true, medusa: true, centurion: true } },
+              })
+            }
+            disabled={!kvOk || saving}
+            className="mt-2 inline-flex items-center gap-1 rounded bg-violet-600 px-2 py-1 text-[11px] font-bold text-white transition-colors hover:bg-violet-700 disabled:opacity-50"
+          >
+            <Waypoints className="h-3 w-3" />
+            ligar o relay nos três de uma vez
+          </button>
+        )}
+
         <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
           Cole aqui a URL que o hub te deu (<strong>um cadastro só</strong>, serve pros três). No hub, o destino
           dessa chave tem que ser{" "}
