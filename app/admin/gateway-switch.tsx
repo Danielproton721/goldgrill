@@ -11,6 +11,7 @@ import {
   Copy,
   Check,
   CheckCircle2,
+  PlugZap,
 } from "lucide-react"
 import type { GatewayConfig, GatewayId } from "@/lib/gateways/active"
 import { FlowDiagram } from "./flow-diagram"
@@ -50,6 +51,22 @@ export function GatewaySwitch({
   function destacar(id: GatewayId) {
     setDestacado(id)
     setTimeout(() => setDestacado((atual) => (atual === id ? null : atual)), 900)
+  }
+
+  const [testando, setTestando] = useState(false)
+  const [teste, setTeste] = useState<{ ok: boolean; titulo: string; detalhe: string } | null>(null)
+
+  async function testarRelay() {
+    setTestando(true)
+    setTeste(null)
+    try {
+      const r = await fetch("/api/admin/relay-test", { method: "POST" })
+      setTeste(await r.json())
+    } catch {
+      setTeste({ ok: false, titulo: "Não deu pra testar", detalhe: "Falha de conexão com o painel." })
+    } finally {
+      setTestando(false)
+    }
   }
 
   const principal = config.order.find((id) => config.enabled[id]) ?? null
@@ -168,6 +185,34 @@ export function GatewaySwitch({
             className="min-w-[240px] flex-1 rounded border border-border bg-background px-2 py-1 font-mono text-[11px] disabled:opacity-50"
           />
         </div>
+        {/* Testar antes de vender: prova o caminho sem precisar de pagamento. */}
+        {config.relay.url && (
+          <button
+            onClick={testarRelay}
+            disabled={testando}
+            className="mt-2 mr-2 inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+          >
+            {testando ? <Loader2 className="h-3 w-3 animate-spin" /> : <PlugZap className="h-3 w-3" />}
+            {testando ? "testando…" : "testar conexão com o hub"}
+          </button>
+        )}
+
+        {teste && (
+          <div
+            className={`gg-pop mt-2 rounded-lg border p-2 text-[11px] leading-relaxed ${
+              teste.ok
+                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                : "border-red-300 bg-red-50 text-red-800"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold">
+              {teste.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+              {teste.titulo}
+            </div>
+            <p className="mt-0.5">{teste.detalhe}</p>
+          </div>
+        )}
+
         {/* Ligar um por um é onde se esquece — este botão liga a fila inteira. */}
         {config.relay.url && config.order.some((id) => !config.relay.enabled[id]) && (
           <button
