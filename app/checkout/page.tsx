@@ -663,11 +663,9 @@ function CheckoutContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        const gatewayHint = data?.gateway
-          ? ` | gateway: ${typeof data.gateway === 'string' ? data.gateway : JSON.stringify(data.gateway)}`
-          : '';
-        console.error('[PIX][gateway response]', data);
-        throw new Error((data?.error || data?.detail || 'Erro ao gerar PIX') + gatewayHint);
+        // Sem despejar a resposta do gateway no console nem na mensagem: é
+        // dali que se mapeia a infraestrutura de pagamento de uma loja.
+        throw new Error(data?.error || 'Erro ao gerar PIX');
       }
 
       setPixData({
@@ -916,11 +914,7 @@ function CheckoutContent() {
           });
           const data = await res.json();
           if (!res.ok) {
-            const gatewayHint = data?.gateway
-              ? ` | gateway: ${typeof data.gateway === 'string' ? data.gateway : JSON.stringify(data.gateway)}`
-              : '';
-            console.error('[CARD][gateway response]', data);
-            throw new Error((data?.error || data?.detail || 'Erro ao processar cartão') + gatewayHint);
+            throw new Error(data?.error || 'Erro ao processar cartão');
           }
           backendResponse = data;
           // Devolve o objeto da transaction (com next_action) pro SDK

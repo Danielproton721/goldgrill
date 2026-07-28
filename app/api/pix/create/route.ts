@@ -250,7 +250,6 @@ export async function POST(request: Request) {
       json: {
         txid,
         orderCode,
-        gateway: "medusa",
         qrCode: result.qrCode,
         qrCodeImage: result.qrCodeImage ?? null,
         expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -319,7 +318,6 @@ export async function POST(request: Request) {
       json: {
         txid,
         orderCode,
-        gateway: "centurion",
         qrCode: result.qrCode,
         qrCodeImage: result.qrCodeImage ?? null,
         expiresAt: result.expiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
@@ -368,8 +366,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    console.log("[PIX API] >>> request payload:", JSON.stringify(payload));
-    console.log("[PIX API] >>> using key prefix:", `${secretKey.slice(0, 6)}...${secretKey.slice(-4)}`);
+    // Log sem dado pessoal (CPF/e-mail/telefone) e sem pedaço de chave: o log
+    // serve pra diagnosticar, não pra guardar cadastro de cliente.
+    console.log("[PIX API] >>> criando cobranca:", { ref: externalRef, valor: amountCents, notify: Boolean(notifyUrl) });
 
     const upstream = await fetch(endpoint, {
       method: "POST",
@@ -383,7 +382,7 @@ export async function POST(request: Request) {
     });
 
     const raw = await upstream.text();
-    console.log(`[PIX API] <<< status ${upstream.status}, body:`, raw);
+    console.log(`[PIX API] <<< status ${upstream.status}`);
 
     let data: any = null;
     try {
@@ -505,7 +504,6 @@ export async function POST(request: Request) {
       json: {
         txid,
         orderCode,
-        gateway: "pagou",
         qrCode,
         qrCodeImage,
         expiresAt,
@@ -555,7 +553,7 @@ export async function POST(request: Request) {
 
   console.error(`[PIX API] TODOS os gateways falharam: ${falhas.join(" | ")}`);
   return NextResponse.json(
-    { error: "Pagamento indisponível no momento. Tente novamente em instantes.", tried: falhas },
+    { error: "Pagamento indisponível no momento. Tente novamente em instantes." },
     { status: 502 }
   );
 }
