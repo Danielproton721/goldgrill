@@ -115,8 +115,13 @@ function rowToPartial(row: ProductRow): Partial<Product> {
 
   if (row.compareAtPrice !== undefined) {
     const t = row.compareAtPrice.trim()
-    if (t === "") out.compareAtPrice = undefined // intenção de limpar
-    else {
+    if (t === "") {
+      // Intenção de LIMPAR o riscado. Não pode ser `undefined`: o overlay é
+      // gravado com JSON.stringify, que APAGA chaves com undefined — a intenção
+      // se perdia na gravação e o riscado da base voltava. `null` sobrevive ao
+      // JSON e é traduzido de volta em getMergedProducts().
+      out.compareAtPrice = null as unknown as undefined
+    } else {
       const cap = parseNum(t)
       if (cap !== undefined) out.compareAtPrice = cap // só grava se for número válido
     }
@@ -158,7 +163,11 @@ export async function getMergedProducts(): Promise<Product[]> {
     if (base) {
       // edição: aplica por cima da base, mantendo o id numérico original e os
       // campos ricos (variants, images[], customerReviews…) que não se editam.
-      byId.set(id, { ...base, ...ov, id: base.id })
+      const mesclado = { ...base, ...ov, id: base.id }
+      // null no overlay = "limpar este campo" (ver rowToPartial). Traduz pro
+      // formato do Product, onde ausência é undefined.
+      if (ov.compareAtPrice === null) mesclado.compareAtPrice = undefined
+      byId.set(id, mesclado)
     } else {
       // produto novo: o override já é um Product completo (montado no upsert).
       byId.set(id, ov as Product)
