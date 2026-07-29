@@ -407,30 +407,6 @@ export function ProductsPanel({
             <span>
               {rows.length} de {catalog.rows.length} produto(s)
             </span>
-            {visibleRows.length > 0 && (
-              <>
-                <button
-                  onClick={alternarTodosVisiveis}
-                  className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted"
-                >
-                  {todosVisiveisMarcados ? <Square className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
-                  {todosVisiveisMarcados ? "desmarcar" : "marcar"} todos
-                </button>
-                {/* Marca os próximos ainda desmarcados, sem zerar a seleção. */}
-                {[5, 10].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => marcarMais(n)}
-                    disabled={restamParaMarcar === 0}
-                    title={`Marcar os próximos ${n} ainda desmarcados`}
-                    className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40"
-                  >
-                    <Plus className="h-3 w-3" />
-                    {n}
-                  </button>
-                ))}
-              </>
-            )}
           </div>
           <div className="flex flex-1 flex-wrap justify-end gap-2 sm:flex-none">
             <button
@@ -521,6 +497,36 @@ export function ProductsPanel({
         </div>
       ) : (
         <>
+          {/* Controles de seleção colados na lista: ficavam no topo do painel,
+              longe das caixinhas — obrigava a subir o olho pra marcar. */}
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={alternarTodosVisiveis}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted"
+            >
+              {todosVisiveisMarcados ? <Square className="h-3.5 w-3.5" /> : <CheckSquare className="h-3.5 w-3.5" />}
+              {todosVisiveisMarcados ? "desmarcar" : "marcar"} todos
+            </button>
+            {[5, 10].map((n) => (
+              <button
+                key={n}
+                onClick={() => marcarMais(n)}
+                disabled={restamParaMarcar === 0}
+                title={`Marcar os próximos ${n} ainda desmarcados`}
+                className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-bold text-foreground hover:bg-muted disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {n}
+              </button>
+            ))}
+            {selecionados.size > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {selecionados.size} marcado(s)
+                {restamParaMarcar > 0 ? ` · ${restamParaMarcar} sem marcar` : " · lista toda"}
+              </span>
+            )}
+          </div>
+
           {/* Mobile: cards */}
           <div className="space-y-2 md:hidden">
             {visibleRows.map((row) => {
