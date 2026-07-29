@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { consumeRateLimit, getClientIp } from "@/lib/checkout-security";
 
 import { getPaymentStatus, isGatewayPaidStatus, recordPaymentStatus } from "@/lib/payment-status";
 import { getTxGateway } from "@/lib/gateways/active";
@@ -8,6 +9,13 @@ import { getStatusCenturion } from "@/lib/gateways/centurion";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  // O checkout consulta a cada poucos segundos enquanto o PIX está aberto —
+  // 60/min por IP é folga pra isso e barra quem quiser usar a rota como
+  // amplificador (cada chamada lê o KV e pode consultar o gateway).
+  if (!consumeRateLimit(`status:${getClientIp(request)}`, 60, 60_000).ok) {
+    return NextResponse.json({ error: "Muitas consultas." }, { status: 429 });
+  }
+
   const url = new URL(request.url);
   const txid = url.searchParams.get("txid")?.trim();
 

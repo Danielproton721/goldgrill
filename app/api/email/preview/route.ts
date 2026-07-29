@@ -1,3 +1,4 @@
+import { isAuthed } from "@/lib/admin-auth";
 import { renderOrderConfirmationEmail, renderAbandonedCartEmail, renderShippedEmail } from "@/lib/order-email";
 
 export const dynamic = "force-dynamic";
@@ -5,6 +6,14 @@ export const dynamic = "force-dynamic";
 // Preview dos e-mails com dados de exemplo. ?tipo=pendente | postado; sem param
 // mostra o de confirmação. Dados fake, não toca em nada real.
 export async function GET(request: Request) {
+  // Não envia e-mail (é só a arte com dados de exemplo), mas página interna
+  // não é área pública: fica atrás do login do /admin.
+  if (!(await isAuthed())) {
+    return new Response("Faça login no /admin primeiro.", {
+      status: 401,
+      headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex" },
+    });
+  }
   const tipo = new URL(request.url).searchParams.get("tipo");
   const order = {
     orderCode: "GG-8F3A2K",
