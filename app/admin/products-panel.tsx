@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDownUp,
+  Filter,
   CheckSquare,
   Download,
   ExternalLink,
@@ -87,6 +88,10 @@ export function ProductsPanel({
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [bulkAberto, setBulkAberto] = useState(false)
   const [ordem, setOrdem] = useState<Ordem>("padrao")
+  // Filtros (o que APARECE), separados da ordenação (em que ORDEM aparece).
+  const [filtroRiscado, setFiltroRiscado] = useState<"todos" | "com" | "sem">("todos")
+  const [precoMin, setPrecoMin] = useState("")
+  const [precoMax, setPrecoMax] = useState("")
 
   function alternar(id: string) {
     setSelecionados((atual) => {
@@ -120,13 +125,39 @@ export function ProductsPanel({
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const filtradas = !q
-      ? catalog.rows
-      : catalog.rows.filter((r) =>
-          [r[columns.name], r[idHeader], r[columns.category], r[columns.slug]]
-            .filter(Boolean)
-            .some((v) => String(v).toLowerCase().includes(q)),
-        )
+    const numero = (v: string) => {
+      const n = Number(String(v ?? "").replace(",", "."))
+      return Number.isFinite(n) ? n : NaN
+    }
+    const min = precoMin.trim() ? numero(precoMin) : NaN
+    const max = precoMax.trim() ? numero(precoMax) : NaN
+
+    const filtradas = catalog.rows.filter((r) => {
+      // Busca por texto
+      if (q) {
+        const bate = [r[columns.name], r[idHeader], r[columns.category], r[columns.slug]]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q))
+        if (!bate) return false
+      }
+
+      const preco = Number(r[columns.price]) || 0
+
+      // Faixa de preço (qualquer um dos dois lados pode ficar vazio)
+      if (Number.isFinite(min) && preco < min) return false
+      if (Number.isFinite(max) && preco > max) return false
+
+      // Riscado: só conta como "tem" quando é MAIOR que o preço — riscado
+      // menor ou igual não aparece como desconto na loja.
+      if (filtroRiscado !== "todos") {
+        const de = Number(r[columns.compareAtPrice]) || 0
+        const temRiscado = de > preco && preco > 0
+        if (filtroRiscado === "com" && !temRiscado) return false
+        if (filtroRiscado === "sem" && temRiscado) return false
+      }
+
+      return true
+    })
 
     if (ordem === "padrao") return filtradas
 
@@ -161,7 +192,10 @@ export function ProductsPanel({
       default:
         return filtradas
     }
-  }, [catalog.rows, query, columns, idHeader, ordem])
+  }, [catalog.rows, query, columns, idHeader, ordem, filtroRiscado, precoMin, precoMax])
+
+  const temFiltro =
+    filtroRiscado !== "todos" || precoMin.trim() !== "" || precoMax.trim() !== "" || query.trim() !== ""
 
   const visibleRows = rows.slice(0, 300)
 
@@ -386,6 +420,55 @@ export function ProductsPanel({
             placeholder="Buscar por nome, id, categoria…"
             className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
           />
+          {/* Filtros: decidem QUAIS produtos aparecem (a ordenação ao lado só
+              muda a ordem). Separados de propósito — misturar os dois num
+              seletor só é o que confunde na maioria dos painéis. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Filter className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <select
+              value={filtroRiscado}
+              onChange={(e) => setFiltroRiscado(e.target.value as "todos" | "com" | "sem")}
+              aria-label="Filtrar por preço riscado"
+              className="rounded-lg border border-border bg-background px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              <option value="todos">Riscado: todos</option>
+              <option value="com">Riscado: só COM</option>
+              <option value="sem">Riscado: só SEM</option>
+            </select>
+            <div className="flex items-center gap-1">
+              <input
+                value={precoMin}
+                onChange={(e) => setPrecoMin(e.target.value)}
+                inputMode="decimal"
+                placeholder="R$ de"
+                aria-label="Preço mínimo"
+                className="w-[86px] rounded-lg border border-border bg-background px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <span className="text-xs text-muted-foreground">até</span>
+              <input
+                value={precoMax}
+                onChange={(e) => setPrecoMax(e.target.value)}
+                inputMode="decimal"
+                placeholder="R$ até"
+                aria-label="Preço máximo"
+                className="w-[86px] rounded-lg border border-border bg-background px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+            {temFiltro && (
+              <button
+                onClick={() => {
+                  setFiltroRiscado("todos")
+                  setPrecoMin("")
+                  setPrecoMax("")
+                  setQuery("")
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-2.5 text-xs font-bold text-foreground hover:bg-muted"
+              >
+                <X className="h-3.5 w-3.5" /> limpar
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-1.5">
             <ArrowDownUp className="h-4 w-4 shrink-0 text-muted-foreground" />
             <select
@@ -406,6 +489,7 @@ export function ProductsPanel({
           <div className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <span>
               {rows.length} de {catalog.rows.length} produto(s)
+              {temFiltro && <strong className="ml-1 text-foreground">· filtro ativo</strong>}
             </span>
           </div>
           <div className="flex flex-1 flex-wrap justify-end gap-2 sm:flex-none">
