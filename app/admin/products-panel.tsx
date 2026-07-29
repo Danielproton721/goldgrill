@@ -205,6 +205,26 @@ export function ProductsPanel({
   const todosVisiveisMarcados =
     visibleRows.length > 0 && visibleRows.every((r) => selecionados.has(r[idHeader]))
 
+  /**
+   * Marca os próximos N produtos ainda desmarcados da lista, somando ao que já
+   * está selecionado. Evita clicar de um em um pra montar um lote de 10.
+   * Respeita a busca e a ordenação: "próximos" = os de cima pra baixo na tela.
+   */
+  function marcarMais(n: number) {
+    const proximos = visibleRows.map((r) => r[idHeader]).filter((id) => !selecionados.has(id))
+    if (!proximos.length) {
+      setMsg({ ok: false, text: "Todos os produtos da lista já estão selecionados." })
+      return
+    }
+    setSelecionados((atual) => {
+      const proximo = new Set(atual)
+      proximos.slice(0, n).forEach((id) => proximo.add(id))
+      return proximo
+    })
+  }
+
+  const restamParaMarcar = visibleRows.filter((r) => !selecionados.has(r[idHeader])).length
+
   function alternarTodosVisiveis() {
     setSelecionados((atual) => {
       const proximo = new Set(atual)
@@ -388,13 +408,28 @@ export function ProductsPanel({
               {rows.length} de {catalog.rows.length} produto(s)
             </span>
             {visibleRows.length > 0 && (
-              <button
-                onClick={alternarTodosVisiveis}
-                className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted md:hidden"
-              >
-                {todosVisiveisMarcados ? <Square className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
-                {todosVisiveisMarcados ? "desmarcar" : "marcar"} todos
-              </button>
+              <>
+                <button
+                  onClick={alternarTodosVisiveis}
+                  className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted"
+                >
+                  {todosVisiveisMarcados ? <Square className="h-3 w-3" /> : <CheckSquare className="h-3 w-3" />}
+                  {todosVisiveisMarcados ? "desmarcar" : "marcar"} todos
+                </button>
+                {/* Marca os próximos ainda desmarcados, sem zerar a seleção. */}
+                {[5, 10].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => marcarMais(n)}
+                    disabled={restamParaMarcar === 0}
+                    title={`Marcar os próximos ${n} ainda desmarcados`}
+                    className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[11px] font-bold text-foreground hover:bg-muted disabled:opacity-40"
+                  >
+                    <Plus className="h-3 w-3" />
+                    {n}
+                  </button>
+                ))}
+              </>
             )}
           </div>
           <div className="flex flex-1 flex-wrap justify-end gap-2 sm:flex-none">
@@ -448,6 +483,26 @@ export function ProductsPanel({
           >
             <Tag className="h-3.5 w-3.5" /> Editar preços
           </button>
+
+          {/* Aumentar o lote sem sair da barra. */}
+          {restamParaMarcar > 0 && (
+            <span className="flex items-center gap-1">
+              {[5, 10].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => marcarMais(n)}
+                  title={`Somar os próximos ${n} à seleção`}
+                  className="inline-flex items-center gap-0.5 rounded-lg border border-border px-2 py-1.5 text-xs font-bold text-foreground hover:bg-muted"
+                >
+                  <Plus className="h-3 w-3" />
+                  {n}
+                </button>
+              ))}
+              <span className="text-[11px] text-muted-foreground">
+                ({restamParaMarcar} sem marcar)
+              </span>
+            </span>
+          )}
           <button
             onClick={() => setSelecionados(new Set())}
             className="ml-auto text-xs font-bold text-muted-foreground hover:text-foreground"
