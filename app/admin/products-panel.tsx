@@ -632,7 +632,7 @@ export function ProductsPanel({
                   {displayCols.map((h) => (
                     <th key={h} className="px-4 py-3 font-semibold">{h}</th>
                   ))}
-                  <th className="px-4 py-3 font-semibold text-right">Ações</th>
+                  <th className="sticky right-0 bg-card px-4 py-3 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -667,10 +667,27 @@ export function ProductsPanel({
                       )}
                       {displayCols.map((h) => (
                         <td key={h} className="px-4 py-2 text-foreground">
-                          <div className="max-w-[220px] truncate">{celula(h, row)}</div>
+                          {h === columns.name ? (
+                            // Clicar no nome abre o editor completo (fotos,
+                            // descrição, preços). A coluna "Ações" fica na ponta
+                            // direita e sai da tela em telas menores — o nome
+                            // está sempre visível.
+                            <button
+                              onClick={() => startEdit(row)}
+                              disabled={!kvOk}
+                              title="Abrir o editor deste produto"
+                              className="max-w-[240px] truncate text-left font-medium text-foreground underline decoration-transparent transition-colors hover:decoration-current disabled:no-underline"
+                            >
+                              {row[h] || "—"}
+                            </button>
+                          ) : (
+                            <div className="max-w-[220px] truncate">{celula(h, row)}</div>
+                          )}
                         </td>
                       ))}
-                      <td className="px-4 py-2">
+                      <td
+                        className={`sticky right-0 px-4 py-2 ${marcado ? "bg-[#f7f7f7]" : "bg-card"}`}
+                      >
                         <div className="flex justify-end gap-1">
                           {row[columns.slug] && (
                             <a
