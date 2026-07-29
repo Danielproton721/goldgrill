@@ -48,6 +48,13 @@ async function kvTest() {
 }
 
 export async function GET() {
+  // Sem sessão nem a página aparece: rota de diagnóstico não é área pública.
+  if (!(await isAuthed())) {
+    return new Response("Faça login no /admin primeiro.", {
+      status: 401,
+      headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex" },
+    });
+  }
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Diagnóstico de e-mail</title>
 <style>body{font-family:system-ui,sans-serif;max-width:560px;margin:40px auto;padding:0 16px;color:#1a1a1a}
@@ -57,9 +64,7 @@ button{margin-top:16px;background:#eaa50c;color:#1a1a1a;font-weight:800;border:0
 pre{background:#f5f5f5;border:1px solid #e5e5e5;border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-word;font-size:13px;margin-top:16px}</style>
 </head><body>
 <h1>🔧 Diagnóstico de e-mail — Gold Grill</h1>
-<p>Digite a senha do admin e um e-mail de teste. Vai tentar enviar e mostrar o erro exato (se houver).</p>
-<label>Senha do admin</label>
-<input id="secret" type="password" placeholder="ADMIN_PASSWORD" />
+<p>Informe um e-mail de teste. Vai tentar enviar e mostrar o erro exato (se houver).</p>
 <label>E-mail de teste (recebe o envio)</label>
 <input id="to" type="email" placeholder="seu@email.com" />
 <button onclick="run()">Testar envio</button>
@@ -69,7 +74,7 @@ async function run(){
   const out=document.getElementById('out');out.style.display='block';out.textContent='Testando…';
   try{
     const r=await fetch('/api/email/diag',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({secret:document.getElementById('secret').value,to:document.getElementById('to').value})});
+      body:JSON.stringify({to:document.getElementById('to').value})});
     const j=await r.json();out.textContent=JSON.stringify(j,null,2);
   }catch(e){out.textContent='Erro: '+e.message;}
 }
@@ -82,16 +87,14 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {}
-  const secret = String(body?.secret || "");
   const to = String(body?.to || "").trim();
 
-  // Aceita duas formas de auth: o cookie de sessão do admin (quando chamado de
-  // dentro do painel) OU a senha crua no corpo (página standalone /api/email/diag).
-  const adminPw = (process.env.ADMIN_PASSWORD || "").trim();
-  const authedByCookie = await isAuthed();
-  const authedBySecret = Boolean(adminPw) && secret === adminPw;
-  if (!authedByCookie && !authedBySecret) {
-    return NextResponse.json({ ok: false, motivo: "Senha do admin incorreta." }, { status: 401 });
+  // SÓ cookie de sessão. Antes esta rota também aceitava a senha crua no corpo,
+  // o que a transformava num adivinhador de senha: pública, sem limite, e a
+  // resposta dizia se acertou (200) ou errou (401). Quem quiser usar o
+  // diagnóstico faz login no /admin primeiro.
+  if (!(await isAuthed())) {
+    return NextResponse.json({ ok: false, motivo: "Faça login no /admin primeiro." }, { status: 401 });
   }
 
   const apiKey = (process.env.RESEND_API_KEY || "").trim();
