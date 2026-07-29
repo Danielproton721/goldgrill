@@ -90,6 +90,9 @@ export function ProductsPanel({
   const [ordem, setOrdem] = useState<Ordem>("padrao")
   // Filtros (o que APARECE), separados da ordenação (em que ORDEM aparece).
   const [filtroRiscado, setFiltroRiscado] = useState<"todos" | "com" | "sem">("todos")
+  // A faixa pode valer pro preço OU pro riscado — quem está arrumando riscado
+  // exagerado quer filtrar pelo "de", não pelo preço final.
+  const [faixaSobre, setFaixaSobre] = useState<"preco" | "riscado">("preco")
   const [precoMin, setPrecoMin] = useState("")
   const [precoMax, setPrecoMax] = useState("")
 
@@ -142,16 +145,17 @@ export function ProductsPanel({
       }
 
       const preco = Number(r[columns.price]) || 0
+      const riscado = Number(r[columns.compareAtPrice]) || 0
 
-      // Faixa de preço (qualquer um dos dois lados pode ficar vazio)
-      if (Number.isFinite(min) && preco < min) return false
-      if (Number.isFinite(max) && preco > max) return false
+      // Faixa: vale pro preço ou pro riscado (qualquer lado pode ficar vazio).
+      const valor = faixaSobre === "riscado" ? riscado : preco
+      if (Number.isFinite(min) && valor < min) return false
+      if (Number.isFinite(max) && valor > max) return false
 
       // Riscado: só conta como "tem" quando é MAIOR que o preço — riscado
       // menor ou igual não aparece como desconto na loja.
       if (filtroRiscado !== "todos") {
-        const de = Number(r[columns.compareAtPrice]) || 0
-        const temRiscado = de > preco && preco > 0
+        const temRiscado = riscado > preco && preco > 0
         if (filtroRiscado === "com" && !temRiscado) return false
         if (filtroRiscado === "sem" && temRiscado) return false
       }
@@ -192,7 +196,7 @@ export function ProductsPanel({
       default:
         return filtradas
     }
-  }, [catalog.rows, query, columns, idHeader, ordem, filtroRiscado, precoMin, precoMax])
+  }, [catalog.rows, query, columns, idHeader, ordem, filtroRiscado, precoMin, precoMax, faixaSobre])
 
   const temFiltro =
     filtroRiscado !== "todos" || precoMin.trim() !== "" || precoMax.trim() !== "" || query.trim() !== ""
@@ -436,6 +440,15 @@ export function ProductsPanel({
               <option value="sem">Riscado: só SEM</option>
             </select>
             <div className="flex items-center gap-1">
+              <select
+                value={faixaSobre}
+                onChange={(e) => setFaixaSobre(e.target.value as "preco" | "riscado")}
+                aria-label="A faixa de valor vale pro preço ou pro riscado"
+                className="rounded-lg border border-border bg-background px-2 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <option value="preco">valor do preço</option>
+                <option value="riscado">valor do riscado</option>
+              </select>
               <input
                 value={precoMin}
                 onChange={(e) => setPrecoMin(e.target.value)}
