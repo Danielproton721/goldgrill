@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { consumeRateLimit, getClientIp } from "@/lib/checkout-security"
+import { isAuthed } from "@/lib/admin-auth"
 import {
   countOnline,
   countToday,
@@ -28,6 +30,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: "bot" })
   }
 
+  // Cada heartbeat escreve no KV. O beacon legítimo bate a cada ~30s (2/min,
+  // ou algumas a mais com várias abas abertas); 20/min é folga suficiente e
+  // impede que alguém em loop queime o plano do Upstash de fora.
+  if (!consumeRateLimit(`presence:${getClientIp(request)}`, 20, 60_000).ok) {
+    return NextResponse.json({ ok: true, skipped: "rate" })
+  }
+
   let body: any
   try {
     body = await request.json()
@@ -52,6 +61,13 @@ export async function POST(request: Request) {
 // GET ?range=N → { days: [...] } (compat: últimos N dias).
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 export async function GET(request: Request) {
+  // Só o painel consome este GET (contador de online e histórico). Aberto, ele
+  // entregava métrica de negócio — quantos visitantes a loja tem por dia, 31
+  // dias pra trás — pra qualquer um, e ainda gastava KV a cada chamada.
+  if (!(await isAuthed())) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 })
+  }
+
   const params = new URL(request.url).searchParams
   const from = params.get("from") || ""
   const to = params.get("to") || ""
