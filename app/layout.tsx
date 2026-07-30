@@ -22,6 +22,9 @@ import { CartDrawer } from '@/components/store/cart-drawer'
 import { CouponPopup } from '@/components/store/coupon-popup'
 import { CookieConsent } from '@/components/store/cookie-consent'
 import { PresenceBeacon } from '@/components/store/presence-beacon'
+import { AttributionCapture } from '@/components/store/attribution-capture'
+import Script from 'next/script'
+import { GOOGLE_ADS_ID } from '@/lib/gtag'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -53,9 +56,26 @@ export default function RootLayout({
             <CouponPopup />
             <CookieConsent />
             <PresenceBeacon />
+            <AttributionCapture />
           </MenuProvider>
         </CartProvider>
         <Analytics />
+
+        {/* Google Ads — tag base. `afterInteractive` carrega depois que a página
+            fica usável, pra não pesar no LCP (que conta pro ranqueamento e pro
+            índice de qualidade do anúncio). A conversão de COMPRA é disparada
+            no checkout, só quando o pagamento confirma (ver lib/gtag.ts). */}
+        <Script
+          id="gtag-src"
+          strategy="afterInteractive"
+          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`}
+        />
+        <Script id="gtag-init" strategy="afterInteractive">{`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', '${GOOGLE_ADS_ID}');
+        `}</Script>
       </body>
     </html>
   )

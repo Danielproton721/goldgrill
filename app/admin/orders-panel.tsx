@@ -1,6 +1,7 @@
 "use client"
 
 import type { AdminOrder } from "@/lib/orders"
+import { describeAttribution } from "@/lib/attribution"
 
 const brl = (v: number) => `R$ ${Number(v || 0).toFixed(2).replace(".", ",")}`
 
@@ -72,6 +73,23 @@ export function OrdersPanel({ orders, kvOk }: { orders: AdminOrder[]; kvOk: bool
                     {o.gateway}
                   </span>
                 )}
+                {/* De onde veio o cliente. Com tráfego rodando, é aqui que se vê
+                    qual anúncio trouxe cada pedido — inclusive os PIX pagos
+                    depois de o cliente fechar a aba. */}
+                <span
+                  title={
+                    o.attribution?.gclid
+                      ? `gclid: ${o.attribution.gclid}`
+                      : "Sem marcador de anúncio (acesso direto ou orgânico)"
+                  }
+                  className={`inline-block rounded-full border px-2 py-0.5 text-xs font-bold ${
+                    o.attribution?.gclid || o.attribution?.gbraid || o.attribution?.wbraid
+                      ? "border-violet-200 bg-violet-100 text-violet-700"
+                      : "border-border bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {describeAttribution(o.attribution)}
+                </span>
               </div>
 
               <div className="mt-3">

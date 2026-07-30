@@ -10,6 +10,8 @@ import { buildOrderCode } from "@/lib/order-code";
 import { saveOrder } from "@/lib/order-store";
 import { indexOrder } from "@/lib/orders";
 import type { OrderEmailItem } from "@/lib/order-email";
+import type { Attribution } from "@/lib/attribution";
+import { sanitizeAttribution } from "@/lib/attribution";
 import type { GatewayConfig, GatewayId } from "@/lib/gateways/active";
 import {
   WEBHOOK_PATH,
@@ -47,7 +49,11 @@ async function persistNewOrder(
   txid: string,
   order: any,
   value: number,
-  customer: { name: string; email: string; phone: string; cpf: string }
+  customer: { name: string; email: string; phone: string; cpf: string },
+  // De onde o cliente veio. Vai DENTRO do mesmo registro de pedido — é o que
+  // permite creditar a venda ao anúncio quando o webhook confirmar o pagamento,
+  // sem depender do cliente voltar pra loja depois de pagar o PIX.
+  attribution?: Attribution
 ): Promise<string> {
   const orderCode = buildOrderCode(txid);
   try {
@@ -72,6 +78,7 @@ async function persistNewOrder(
       discount: Number(order?.discount ?? 0) > 0 ? Number(order.discount) : undefined,
       coupon: order?.coupon ? String(order.coupon) : undefined,
       total: Number(value),
+      ...(attribution ? { attribution } : {}),
     });
     await indexOrder(txid, Date.now());
   } catch (err) {
@@ -161,6 +168,10 @@ export async function POST(request: Request) {
     );
   }
 
+  // Origem do visitante (gclid/utm) enviada pelo checkout. Corpo vindo do
+  // cliente: passa pelo sanitizador antes de encostar no pedido.
+  const attribution = sanitizeAttribution(body?.attribution);
+
   const amountCents = Math.round(Number(value) * 100);
   const checkoutSession = validateCheckoutSession(getCheckoutSessionToken(request), amountCents);
   if (!checkoutSession.ok) {
@@ -241,7 +252,7 @@ export async function POST(request: Request) {
         email: email.trim(),
         phone: phoneDigits,
         cpf: cpfDigits,
-      });
+      }, attribution);
       await markTxGateway(String(txid), "medusa");
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
@@ -309,7 +320,7 @@ export async function POST(request: Request) {
         email: email.trim(),
         phone: phoneDigits,
         cpf: cpfDigits,
-      });
+      }, attribution);
       await markTxGateway(String(txid), "centurion");
       await scheduleAbandonedCheck(appBaseUrl, String(txid));
     }
@@ -485,6 +496,7 @@ export async function POST(request: Request) {
           discount: Number(orderInput.discount ?? 0) > 0 ? Number(orderInput.discount) : undefined,
           coupon: orderInput.coupon ? String(orderInput.coupon) : undefined,
           total: Number(value),
+          ...(attribution ? { attribution } : {}),
         });
 
         // Indexa o pedido pro painel /admin listar os mais recentes (best-effort).

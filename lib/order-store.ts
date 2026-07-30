@@ -6,6 +6,7 @@
 // que o cliente já tenha fechado a aba.
 
 import { kvGet, kvSet } from "./kv-store";
+import type { Attribution } from "./attribution";
 import type { OrderEmailInput } from "./order-email";
 
 const ORDER_TTL_SECONDS = 60 * 60 * 48; // 48h — janela folgada para o PIX confirmar
@@ -13,6 +14,13 @@ const ORDER_TTL_SECONDS = 60 * 60 * 48; // 48h — janela folgada para o PIX con
 export type StoredOrder = OrderEmailInput & {
   txid: string;
   createdAt: string;
+  /**
+   * De onde o cliente veio (gclid do Google Ads, utm, fbclid). Fica DENTRO do
+   * mesmo registro de pedido — nenhum banco novo, nenhum comando extra no KV.
+   * É o que permite creditar a venda ao anúncio quando o webhook do gateway
+   * confirma o pagamento, sem depender do cliente voltar pra loja.
+   */
+  attribution?: Attribution;
 };
 
 export async function saveOrder(txid: string, order: StoredOrder): Promise<void> {

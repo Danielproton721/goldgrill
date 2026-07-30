@@ -14,6 +14,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PixIcon, MastercardIcon, VisaIcon, EloIcon } from '@/components/store/payment-icons';
 import { ReputationSeals } from '@/components/store/reputation-seals';
 import { useCart, COUPON_CODE } from '@/lib/cart-context';
+import { readAttributionCookie } from "@/lib/attribution"
+import { trackPurchase } from "@/lib/gtag"
 
 const ORDER_LOOKUP_STORAGE_KEY = 'fio-nobre-order-lookup-v1';
 
@@ -288,6 +290,8 @@ function CheckoutContent() {
   // Thank You screen state
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [orderCode, setOrderCode] = useState('');
+  // Trava de disparo único da conversão do Google Ads nesta sessão de checkout.
+  const conversionSentRef = useRef(false);
   const [confirmedOrder, setConfirmedOrder] = useState<ConfirmedOrder | null>(null);
   // Código do pedido gerado no servidor (no /api/pix/create) e reaproveitado
   // na confirmação, para casar com o e-mail disparado pelo webhook.
@@ -501,6 +505,16 @@ function CheckoutContent() {
   const issueOrderCode = useCallback((source: string) => {
     const code = buildOrderCode(source);
     setOrderCode(code);
+
+    // Conversão de COMPRA no Google Ads. Este ponto só é alcançado com o
+    // pagamento JÁ confirmado (PIX: polling recebeu paid=true; cartão:
+    // transação aprovada) — nunca na geração da cobrança.
+    // O guard evita contar duas vezes se a tela de confirmação remontar; o
+    // transaction_id faz o Google deduplicar de qualquer forma.
+    if (!conversionSentRef.current) {
+      conversionSentRef.current = true;
+      trackPurchase(source || code, checkoutTotal);
+    }
     saveOrderLookup({
       code,
       name: name.trim(),
@@ -632,6 +646,9 @@ function CheckoutContent() {
           name,
           email,
           title: "Combo Enxoval",
+          // De onde este cliente veio (gclid/utm). O servidor guarda no pedido
+          // pra creditar a venda ao anúncio quando o PIX for pago.
+          attribution: readAttributionCookie() ?? undefined,
           // Pedido completo persistido no servidor (KV) para o webhook
           // conseguir disparar o e-mail mesmo com a aba fechada.
           order: {
@@ -910,6 +927,7 @@ function CheckoutContent() {
               token: tokenData?.token,
               address,
               browser: browserInfo,
+              attribution: readAttributionCookie() ?? undefined,
             }),
           });
           const data = await res.json();
@@ -1841,6 +1859,9 @@ function CheckoutContent() {
   );
 }
 
+// Origem do visitante (gclid/utm) — vai junto do pedido pra que o SERVIDOR
+// possa creditar a venda ao anúncio quando o gateway confirmar o pagamento,
+// sem depender do cliente voltar pra loja depois de pagar o PIX.
 export default function CheckoutPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center font-bold text-gray-500">Iniciando checkout seguro...</div>}>
