@@ -156,6 +156,19 @@ export function OrdersPanel({ orders, kvOk }: { orders: AdminOrder[]; kvOk: bool
                     {o.gateway && (
                       <div className="mt-1 text-[11px] text-muted-foreground">{o.gateway}</div>
                     )}
+                    {/* Origem do cliente também na tabela (a versão do desktop) —
+                        estava só no card do celular, então no computador não
+                        aparecia. */}
+                    <div
+                      title={o.attribution?.gclid ? `gclid: ${o.attribution.gclid}` : "Sem marcador de anúncio"}
+                      className={`mt-1 text-[11px] font-semibold ${
+                        o.attribution?.gclid || o.attribution?.gbraid || o.attribution?.wbraid
+                          ? "text-violet-700"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {describeAttribution(o.attribution)}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="font-semibold text-foreground">{o.customer?.name || "—"}</div>
