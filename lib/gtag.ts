@@ -29,10 +29,34 @@ declare global {
  * server-side (o gclid já viaja dentro do pedido pra isso) — ver
  * docs/briefing-trafego-seo.md.
  */
-export function trackPurchase(transactionId: string, value: number): void {
+/** Dados do cliente pro Enhanced Conversions (o Google hasheia no navegador). */
+export type PurchaseUserData = {
+  email?: string
+  /** Telefone com DDD; normalizado pra E.164 (+55...) aqui dentro. */
+  phone?: string
+}
+
+export function trackPurchase(
+  transactionId: string,
+  value: number,
+  user?: PurchaseUserData,
+): void {
   if (typeof window === "undefined" || typeof window.gtag !== "function") return
   if (!transactionId || !(value > 0)) return
   try {
+    // Enhanced Conversions ("Conversões otimizadas", já ligado no painel do Ads):
+    // manda e-mail/telefone do cliente junto da conversão. O gtag hasheia no
+    // próprio navegador antes de enviar — nenhum dado pessoal sai em texto puro.
+    // Recupera venda que o clique sozinho perderia (iOS, cookie limpo).
+    const email = user?.email?.trim().toLowerCase()
+    const digits = user?.phone?.replace(/\D/g, "")
+    if (email || digits) {
+      const userData: { email?: string; phone_number?: string } = {}
+      if (email) userData.email = email
+      // BR: 10-11 dígitos = DDD+número (falta o país); 12+ = já traz o 55.
+      if (digits) userData.phone_number = digits.length >= 12 ? `+${digits}` : `+55${digits}`
+      window.gtag("set", "user_data", userData)
+    }
     window.gtag("event", "conversion", {
       send_to: GOOGLE_ADS_COMPRA,
       value,

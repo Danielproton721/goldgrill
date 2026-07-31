@@ -513,7 +513,7 @@ function CheckoutContent() {
     // transaction_id faz o Google deduplicar de qualquer forma.
     if (!conversionSentRef.current) {
       conversionSentRef.current = true;
-      trackPurchase(source || code, checkoutTotal);
+      trackPurchase(source || code, checkoutTotal, { email, phone });
     }
     saveOrderLookup({
       code,
