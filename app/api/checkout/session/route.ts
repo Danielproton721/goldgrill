@@ -7,7 +7,8 @@ import {
   createCheckoutSession,
   getClientIp,
 } from "@/lib/checkout-security"
-import { products } from "@/lib/products"
+import { getMergedProducts } from "@/lib/catalog"
+import type { Product } from "@/lib/products"
 
 export const dynamic = "force-dynamic"
 
@@ -26,13 +27,13 @@ const MAX_ITEM_QUANTITY = 20
 const COUPON_PCT = 5
 const VALID_SHIPPING_CENTS = new Set([0, 1490]) // Frete grátis / Expresso R$14,90
 
-function getItemPriceCents(item: CheckoutItemInput) {
+function getItemPriceCents(item: CheckoutItemInput, catalogo: Product[]) {
   const id = Number(item.id)
   const slug = typeof item.slug === "string" ? item.slug : ""
 
   const product =
-    products.find((entry) => slug && entry.slug === slug) ||
-    products.find(
+    catalogo.find((entry) => slug && entry.slug === slug) ||
+    catalogo.find(
       (entry) =>
         entry.id === id || entry.variants?.some((variant) => variant.id === id)
     )
@@ -43,7 +44,7 @@ function getItemPriceCents(item: CheckoutItemInput) {
   return Math.round((variant?.price ?? product.price) * 100)
 }
 
-function calculateCart(items: CheckoutItemInput[]) {
+function calculateCart(items: CheckoutItemInput[], catalogo: Product[]) {
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_DISTINCT_ITEMS) {
     return null
   }
@@ -57,7 +58,7 @@ function calculateCart(items: CheckoutItemInput[]) {
       return null
     }
 
-    const priceCents = getItemPriceCents(item)
+    const priceCents = getItemPriceCents(item, catalogo)
     if (!priceCents || priceCents <= 0) return null
 
     amountCents += priceCents * quantity
@@ -87,7 +88,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "JSON invalido." }, { status: 400 })
   }
 
-  const cart = calculateCart(body?.items || [])
+  // PREÇO VEM DO CATÁLOGO MESCLADO (base + edições do painel). Usando só o
+  // array base, um produto com preço editado no /admin era assinado com o valor
+  // ANTIGO: a vitrine mostrava R$ 149,90, a sessão assinava R$ 1.580,00 e o
+  // pagamento morria em amount_mismatch. Ou seja: produto editado = cliente
+  // impedido de comprar, em silêncio.
+  const catalogo = await getMergedProducts()
+  const cart = calculateCart(body?.items || [], catalogo)
   if (!cart) {
     return NextResponse.json({ error: "Carrinho invalido para iniciar checkout." }, { status: 400 })
   }
