@@ -172,15 +172,7 @@ export default async function Home() {
 
       <section className="bg-[#ffffff] px-4 py-10 md:py-14">
         <div className="mx-auto max-w-5xl">
-          <div className="aspect-[16/10] w-full overflow-hidden rounded-2xl bg-[#f5f0e8] md:aspect-[21/9]">
-            <img
-              src="/images/fachadaia.png"
-              alt="Nossa loja de churrasco"
-              className="h-full w-full object-cover"
-            />
-          </div>
-
-          <div className="mx-auto max-w-2xl px-2 pt-7 text-center md:pt-9">
+          <div className="mx-auto max-w-2xl px-2 text-center">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b98a2e]">
               Sobre nós
             </p>

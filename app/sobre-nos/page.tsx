@@ -13,15 +13,7 @@ export default function SobreNosPage() {
       <div className="h-14" />
 
       <section className="mx-auto max-w-5xl px-4 py-10 md:py-14">
-        <div className="aspect-[16/10] w-full overflow-hidden rounded-2xl bg-[#f5f0e8] shadow-sm md:aspect-[21/9]">
-          <img
-            src="/images/fachadaia.png"
-            alt="Fachada da loja Gold Grill"
-            className="h-full w-full object-cover"
-          />
-        </div>
-
-        <div className="mx-auto max-w-3xl pt-8 text-center md:pt-10">
+        <div className="mx-auto max-w-3xl text-center">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b98a2e]">
             A Loja
           </p>
