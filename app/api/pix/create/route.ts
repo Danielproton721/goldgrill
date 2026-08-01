@@ -224,7 +224,7 @@ export async function POST(request: Request) {
       cpfDigits,
       phoneDigits,
       ip: buyerIp,
-      title: title || "Gold Grill",
+      title: title || "Combo Enxoval",
     });
     if (!result.ok) {
       console.error(`[PIX/Medusa] Erro (${result.status}/${result.code ?? "-"}):`, result.error);
@@ -295,7 +295,7 @@ export async function POST(request: Request) {
       cpfDigits,
       phoneDigits,
       ip: buyerIp,
-      title: title || "Gold Grill",
+      title: title || "Combo Enxoval",
       postbackUrl,
       address,
     });
@@ -364,7 +364,7 @@ export async function POST(request: Request) {
     },
     products: [
       {
-        name: title || "Gold Grill",
+        name: title || "Combo Enxoval",
         quantity: 1,
         price: amountCents,
       },
