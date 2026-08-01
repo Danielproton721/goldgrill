@@ -21,18 +21,18 @@ export default function NossaHistoriaPage() {
         </h1>
         <div className="mt-6 space-y-4 text-sm leading-7 text-[#525252] md:text-base">
           <p>
-            A Gold Grill foi criada com uma ideia simples: transformar a escolha de
-            a compra de artigos de churrasco em uma experiência mais clara, inspiradora e confiável.
+            A Gold Grill foi criada com uma ideia simples: transformar a compra de
+            artigos de churrasco em uma experiência mais clara, inspiradora e confiável.
           </p>
           <p>
-            Começamos reunindo produtos essenciais para quartos, banheiros e áreas
-            de descanso, sempre buscando peças que entreguem conforto, beleza e boa
-            apresentação.
+            Começamos reunindo o essencial pra um bom churrasco — churrasqueiras,
+            facas, tábuas, espetos e grelhas — sempre buscando peças que entreguem
+            durabilidade, acabamento e o prazer de reunir a galera na brasa.
           </p>
           <p>
-            Hoje seguimos ampliando nossas coleções com foco em praticidade,
-            atendimento cuidadoso e produtos que deixam a casa mais agradável em
-            todos os detalhes.
+            Hoje seguimos ampliando nossas coleções com foco em qualidade,
+            atendimento cuidadoso e produtos que deixam o seu churrasco ainda
+            melhor em todos os detalhes.
           </p>
         </div>
       </section>

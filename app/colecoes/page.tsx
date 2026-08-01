@@ -20,7 +20,7 @@ export default function ColecoesPge() {
           Nossas Coleções
         </h1>
         <p className="text-xs text-[#737373] text-center mt-1.5 leading-relaxed max-w-xs mx-auto">
-          Encontre a linha ideal para a sua casa
+          Encontre a linha ideal para o seu churrasco
         </p>
       </section>
 

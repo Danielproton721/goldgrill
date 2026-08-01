@@ -57,7 +57,7 @@ export default function ContatoECatalogoPage() {
             <div>
               <p className="text-sm font-semibold text-[#1a1a1a]">Instagram</p>
               <p className="mt-1 text-sm text-[#737373]">
-                Acompanhe novidades, lançamentos e inspire-se com nossas decorações.
+                Acompanhe novidades, lançamentos e inspire-se pra brilhar no churrasco.
               </p>
               <a
                 href="https://instagram.com/goldgrill"

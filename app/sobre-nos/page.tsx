@@ -22,15 +22,14 @@ export default function SobreNosPage() {
           </h1>
           <div className="mt-6 space-y-4 text-sm leading-7 text-[#525252] md:text-base">
             <p>
-              A Gold Grill nasceu para ajudar você a montar uma casa mais
-              confortável, bonita e acolhedora, com produtos escolhidos para o uso
-              real do dia a dia.
+              A Gold Grill nasceu para reunir tudo que o seu churrasco precisa em
+              um só lugar — churrasqueiras, facas, tábuas, espetos, grelhas e kits
+              de presente com acabamento premium.
             </p>
             <p>
-              Trabalhamos com churrasqueiras, facas, tábuas e kits pensando em durabilidade,
-              durabilidade e acabamento. Cada coleção é organizada para facilitar
-              a escolha de peças que combinem com o seu estilo e com a rotina da
-              sua casa.
+              Selecionamos cada peça pensando em durabilidade e acabamento, pra
+              quem leva a brasa a sério. Nossas coleções são organizadas pra
+              facilitar a escolha do que combina com o seu estilo de churrasco.
             </p>
             <p>
               Nosso compromisso é oferecer uma experiência de compra simples,

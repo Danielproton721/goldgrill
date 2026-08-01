@@ -38,7 +38,7 @@ export default function TermosDeUsoPage() {
           <div>
             <h2 className="text-base font-bold text-[#1a1a1a]">2. Objeto</h2>
             <p className="mt-2">
-              A Gold Grill oferece artigos de churrasco (churrasqueiras, facas, tábuas, espetos, kits de presente, jogos de cama, tapetes, almofadas e itens relacionados) por meio deste canal de e-commerce, destinado exclusivamente a consumidores finais (pessoa física) no território brasileiro.
+              A Gold Grill oferece artigos de churrasco (churrasqueiras, facas, tábuas, espetos, grelhas, kits de presente e itens relacionados) por meio deste canal de e-commerce, destinado exclusivamente a consumidores finais (pessoa física) no território brasileiro.
             </p>
           </div>
 
