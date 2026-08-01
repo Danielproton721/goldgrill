@@ -469,8 +469,13 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-[#1a1a1a] font-medium">
-                  ou veja as opções no cartão
+                {hasActiveDiscount && activeCompareAtPrice && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#15803d]/10 px-2.5 py-1 text-xs font-bold text-[#15803d]">
+                    🎉 Você economiza R$ {(activeCompareAtPrice - activePrice).toFixed(2).replace(".", ",")}
+                  </div>
+                )}
+                <div className="mt-2 text-sm text-[#1a1a1a] font-medium">
+                  ou <span className="font-bold">12x de R$ {(installmentOptions[installmentOptions.length - 1]?.installmentValue ?? activePrice / 12).toFixed(2).replace(".", ",")}</span> no cartão
                 </div>
                 <button
                   type="button"
@@ -669,7 +674,7 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
                 </div>
                 <div className="flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#b98a2e]"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z" /></svg>
-                  <span className="text-[#737373]">Frete <span className="font-bold text-[#1a1a1a]">rápido e seguro</span> para todo o Brasil</span>
+                  <span className="text-[#737373]"><span className="font-bold text-[#15803d]">Frete grátis</span> para todo o Brasil — chega antes do Dia dos Pais</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#b98a2e]"><circle cx="12" cy="12" r="10" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 18V6" /></svg>
@@ -833,29 +838,39 @@ export function ProductPage({ product, relatedProducts, variantSiblings = [], si
       {isMounted &&
         createPortal(
           <div
-            className={`fixed bottom-5 left-4 right-4 z-[9999] transition-all duration-300 ease-in-out md:hidden ${shouldShowFloatingCTA
+            className={`fixed bottom-0 left-0 right-0 z-[9999] transition-all duration-300 ease-in-out md:hidden ${shouldShowFloatingCTA
               ? "translate-y-0 opacity-100"
               : "translate-y-full opacity-0 pointer-events-none"
               }`}
           >
-            <button
-              onClick={handleAddToCart}
-              className={`w-full text-sm font-bold py-3.5 rounded-full uppercase tracking-wider active:scale-[0.97] transition-all flex items-center justify-center gap-2 shadow-[0_4px_24px_rgba(0,0,0,0.3)] ${added
-                ? "bg-[#1a1a1a] text-[#ffffff]"
-                : "bg-gradient-to-r from-[#f8cc46] to-[#eaa50c] text-[#1a1a1a] hover:brightness-105"
-              }`}
-            >
-              {added ? (
-                <>
-                  <Check size={18} />
-                  <span>Adicionado ao Carrinho</span>
-                </>
-              ) : (
-                <>
+            <div className="flex items-center gap-3 border-t border-[#eee] bg-white/95 px-4 py-3 shadow-[0_-4px_24px_rgba(0,0,0,0.18)] backdrop-blur">
+              <div className="flex flex-col leading-none">
+                {hasActiveDiscount && activeCompareAtPrice && (
+                  <span className="text-[11px] text-[#737373] line-through">
+                    R$ {activeCompareAtPrice.toFixed(2).replace(".", ",")}
+                  </span>
+                )}
+                <span className="text-lg font-extrabold text-[#15803d]">
+                  R$ {activePrice.toFixed(2).replace(".", ",")}
+                </span>
+              </div>
+              <button
+                onClick={handleAddToCart}
+                className={`flex-1 text-sm font-bold py-3.5 rounded-full uppercase tracking-wider active:scale-[0.97] transition-all flex items-center justify-center gap-2 ${added
+                  ? "bg-[#1a1a1a] text-[#ffffff]"
+                  : "bg-gradient-to-r from-[#f8cc46] to-[#eaa50c] text-[#1a1a1a] hover:brightness-105"
+                }`}
+              >
+                {added ? (
+                  <>
+                    <Check size={18} />
+                    <span>Adicionado</span>
+                  </>
+                ) : (
                   <span>Comprar agora</span>
-                </>
-              )}
-            </button>
+                )}
+              </button>
+            </div>
           </div>,
           document.body
         )}

@@ -3231,7 +3231,7 @@ export const products: Product[] = [
     "reviews": 89,
     "category": "Churrasqueiras Elétricas",
     "slug": "churrasqueira-portatil-a-carvao-gg-trip-bag",
-    "description": "Churrasqueira Portátil a Carvão GG Trip Bag — produto da linha Churrasqueiras Elétricas da nossa loja. Grelha em ferro fundido de 310mm com revestimento antiaderente, estrutura em aço inoxidável e ventoinha de controle de brasa (pilhas ou USB) que reduz a fumaça e queima por até 2 horas. Acompanha bag exclusiva pra levar pra qualquer lugar. Qualidade premium, acabamento em inox e a durabilidade que o seu churrasco merece. Entrega para todo o Brasil.",
+    "description": "Churrasqueira Portátil a Carvão GG Trip Bag — o churrasco de verdade que cabe na bag e vai com você pra qualquer lugar. Grelha em ferro fundido de 310mm com revestimento antiaderente, estrutura em aço inoxidável e ventoinha de controle de brasa (pilhas ou USB) que reduz bastante a fumaça e deixa a brasa no ponto rápido, com até 2 horas de queima. Acompanha bag exclusiva pra levar pro sítio, praia, camping ou até o apartamento. Acabamento premium em inox e a durabilidade que o seu churrasco merece. Entrega para todo o Brasil.",
     "isTest": false,
     "tags": []
   },
