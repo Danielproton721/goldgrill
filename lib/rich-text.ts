@@ -38,7 +38,7 @@ export function sanitizeDescriptionHtml(html: string): string {
     allowedAttributes: {
       a: ["href", "target", "rel"],
       img: ["src", "alt", "class"],
-      video: ["src", "controls", "class"],
+      video: ["src", "class", "autoplay", "loop", "muted", "playsinline"],
       "*": ["class", "style"],
     },
     // `style` só é liberado pro alinhamento de texto (o botão de centralizar no
@@ -48,6 +48,24 @@ export function sanitizeDescriptionHtml(html: string): string {
       "*": { "text-align": [/^left$/, /^right$/, /^center$/, /^justify$/] },
     },
     allowedSchemes: ["http", "https", "mailto"],
+    // Vídeo na descrição roda como um GIF: autoplay, em loop, mudo e inline (pra
+    // não abrir em tela cheia no iOS) — e SEM controles (sem HUD do player).
+    // `muted` é obrigatório: os navegadores só deixam o autoplay rodar sem som.
+    // `controls` é descartado de propósito. Vale pra qualquer <video> da
+    // descrição, tenha vindo do editor ou de um HTML antigo com controls.
+    transformTags: {
+      video: (_tagName, attribs) => ({
+        tagName: "video",
+        attribs: {
+          ...(attribs.src ? { src: attribs.src } : {}),
+          ...(attribs.class ? { class: attribs.class } : {}),
+          autoplay: "autoplay",
+          loop: "loop",
+          muted: "muted",
+          playsinline: "playsinline",
+        },
+      }),
+    },
   })
 }
 
