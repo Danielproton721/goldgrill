@@ -645,7 +645,7 @@ function CheckoutContent() {
           cpf,
           name,
           email,
-          title: "Combo Enxoval",
+          title: "Gold Grill",
           // De onde este cliente veio (gclid/utm). O servidor guarda no pedido
           // pra creditar a venda ao anúncio quando o PIX for pago.
           attribution: readAttributionCookie() ?? undefined,
@@ -923,7 +923,7 @@ function CheckoutContent() {
               cpf,
               phone,
               installments: parseInt(cardInstallments) || 1,
-              title: 'Combo Enxoval',
+              title: 'Gold Grill',
               token: tokenData?.token,
               address,
               browser: browserInfo,
