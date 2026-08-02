@@ -12,7 +12,7 @@ export const revalidate = 300
 
 export async function GET() {
   try {
-    const oferta = getOrderBump(await getMergedProducts())
+    const oferta = await getOrderBump(await getMergedProducts())
     if (!oferta) return NextResponse.json({ oferta: null })
     return NextResponse.json({ oferta })
   } catch {

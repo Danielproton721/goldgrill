@@ -320,7 +320,14 @@ function CheckoutContent() {
     return () => { cancelado = true; };
   }, []);
 
-  const bumpPrice = bumpAceito && bumpOferta ? bumpOferta.precoCents / 100 : 0;
+  // Se o produto do bump já está no carrinho, a oferta não faz sentido: some o
+  // card e desfaz a marcação (senão o cliente pagaria o item duas vezes).
+  const bumpNoCarrinho = Boolean(bumpOferta && items.some((i) => i.slug === bumpOferta.slug));
+  useEffect(() => {
+    if (bumpNoCarrinho && bumpAceito) setBumpAceito(false);
+  }, [bumpNoCarrinho, bumpAceito]);
+
+  const bumpPrice = bumpAceito && bumpOferta && !bumpNoCarrinho ? bumpOferta.precoCents / 100 : 0;
   const checkoutTotal = Math.max(0, totalPrice - couponDiscount) + shippingPrice + bumpPrice;
 
   // Mantém a ref espelhada com o estado (lida pelas armadilhas de saída).
@@ -590,7 +597,7 @@ function CheckoutContent() {
         coupon: couponApplied,
         shippingCents: Math.round(shippingPrice * 100),
         // Só o "quero" — o preço do bump é decidido no servidor.
-        bump: bumpAceito && Boolean(bumpOferta),
+        bump: bumpAceito && Boolean(bumpOferta) && !bumpNoCarrinho,
       }),
     });
 
@@ -1853,7 +1860,7 @@ function CheckoutContent() {
               </div>
               {/* ORDER BUMP: fica colado no Total porque é ali que a pessoa
                   decide. Um clique adiciona; nada de sair da tela. */}
-              {bumpOferta && (
+              {bumpOferta && !items.some((i) => i.slug === bumpOferta.slug) && (
                 <button
                   type="button"
                   onClick={() => setBumpAceito((v) => !v)}

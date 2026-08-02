@@ -9,11 +9,13 @@ import {
   Mail,
   MessageCircleQuestion,
   DatabaseZap,
+  ShoppingBasket,
 } from "lucide-react"
 import type { AdminOrder } from "@/lib/orders"
 import type { Catalog } from "@/lib/catalog"
 import { LogoutButton } from "./logout-button"
 import { OnlineCount } from "./online-count"
+import { OrderBumpPanel } from "./order-bump-panel"
 import { VisitorsHistory } from "./visitors-history"
 import { OrdersPanel } from "./orders-panel"
 import { ProductsPanel } from "./products-panel"
@@ -23,7 +25,7 @@ import { EmailDiagPanel } from "./email-diag-panel"
 import { ObjectionsPanel } from "./objections-panel"
 
 type Modules = { orders: boolean; products: boolean; relay?: boolean }
-type Tab = "orders" | "products" | "objections" | "relay" | "email" | "keys"
+type Tab = "orders" | "products" | "bump" | "objections" | "relay" | "email" | "keys"
 
 export function AdminShell({
   brand,
@@ -57,6 +59,7 @@ export function AdminShell({
   const tabs = [
     modules.orders ? ("orders" as const) : null,
     modules.products ? ("products" as const) : null,
+    modules.products ? ("bump" as const) : null,
     "objections" as const,
     modules.relay ? ("relay" as const) : null,
     "email" as const,
@@ -129,6 +132,15 @@ export function AdminShell({
                 Produtos
               </TabButton>
             )}
+            {modules.products && (
+              <TabButton
+                active={tab === "bump"}
+                onClick={() => setTab("bump")}
+                icon={<ShoppingBasket className="h-4 w-4" />}
+              >
+                Order Bump
+              </TabButton>
+            )}
             <TabButton
               active={tab === "objections"}
               onClick={() => setTab("objections")}
@@ -154,6 +166,7 @@ export function AdminShell({
         {tab === "products" && modules.products && (
           <ProductsPanel initialCatalog={catalog} columns={columns} kvOk={kvOk} blobOk={blobOk} initialPending={pending} />
         )}
+        {tab === "bump" && modules.products && <OrderBumpPanel />}
         {tab === "objections" && <ObjectionsPanel kvOk={kvOk} />}
         {tab === "relay" && modules.relay && <RelayPanel />}
         {tab === "email" && <EmailDiagPanel />}

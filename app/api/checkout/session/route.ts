@@ -108,7 +108,7 @@ export async function POST(request: Request) {
 
   // Order bump: o cliente só diz SE quer; o preço é o do servidor. O cupom não
   // incide sobre ele (já é oferta), e some se a oferta deixar de existir.
-  const bumpOferta = body?.bump === true ? getOrderBump(catalogo) : null
+  const bumpOferta = body?.bump === true ? await getOrderBump(catalogo) : null
   const bumpCents = bumpOferta?.precoCents ?? 0
 
   const totalCents = Math.max(0, cart.amountCents - discountCents) + shippingCents + bumpCents
