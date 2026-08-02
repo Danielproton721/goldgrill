@@ -8,6 +8,7 @@ import {
   getClientIp,
 } from "@/lib/checkout-security"
 import { getMergedProducts } from "@/lib/catalog"
+import { getOrderBump } from "@/lib/order-bump"
 import type { Product } from "@/lib/products"
 
 export const dynamic = "force-dynamic"
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { items?: CheckoutItemInput[]; coupon?: unknown; shippingCents?: unknown } | null
+  let body: { items?: CheckoutItemInput[]; coupon?: unknown; shippingCents?: unknown; bump?: unknown } | null
   try {
     body = await request.json()
   } catch {
@@ -104,13 +105,22 @@ export async function POST(request: Request) {
   const discountCents = body?.coupon ? Math.round((cart.amountCents * COUPON_PCT) / 100) : 0
   const shipCents = Number(body?.shippingCents)
   const shippingCents = VALID_SHIPPING_CENTS.has(shipCents) ? shipCents : 0
-  const totalCents = Math.max(0, cart.amountCents - discountCents) + shippingCents
 
-  const token = createCheckoutSession(totalCents, cart.itemCount)
+  // Order bump: o cliente só diz SE quer; o preço é o do servidor. O cupom não
+  // incide sobre ele (já é oferta), e some se a oferta deixar de existir.
+  const bumpOferta = body?.bump === true ? getOrderBump(catalogo) : null
+  const bumpCents = bumpOferta?.precoCents ?? 0
+
+  const totalCents = Math.max(0, cart.amountCents - discountCents) + shippingCents + bumpCents
+
+  const token = createCheckoutSession(totalCents, cart.itemCount + (bumpOferta ? 1 : 0))
   const response = NextResponse.json({
     ok: true,
     amountCents: totalCents,
-    itemCount: cart.itemCount,
+    itemCount: cart.itemCount + (bumpOferta ? 1 : 0),
+    // Devolve o que foi aceito: se o bump sumiu do catálogo, o front corrige a
+    // tela em vez de mostrar um total que o gateway não vai cobrar.
+    bump: bumpOferta ? { slug: bumpOferta.slug, precoCents: bumpOferta.precoCents } : null,
     expiresInSeconds: CHECKOUT_SESSION_TTL_SECONDS,
   })
 

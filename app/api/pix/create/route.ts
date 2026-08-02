@@ -72,7 +72,13 @@ async function persistNewOrder(
         city: String(order?.address?.city ?? "").trim(),
         stateUF: String(order?.address?.stateUF ?? "").trim().toUpperCase(),
       },
-      items: Array.isArray(order?.items) ? (order.items as OrderEmailItem[]) : [],
+      // Bump escolhido vira mais um item do pedido (e-mail + painel). O valor
+      // total já foi validado contra a sessão assinada, então isto é só
+      // apresentação — não influencia o que foi cobrado.
+      items: [
+        ...(Array.isArray(order?.items) ? (order.items as OrderEmailItem[]) : []),
+        ...(order?.bumpItem?.name ? [order.bumpItem as OrderEmailItem] : []),
+      ],
       subtotal: Number(order?.subtotal ?? value),
       shipping: Number(order?.shipping ?? 0),
       discount: Number(order?.discount ?? 0) > 0 ? Number(order.discount) : undefined,
@@ -490,7 +496,12 @@ export async function POST(request: Request) {
             city: String(orderInput.address?.city ?? "").trim(),
             stateUF: String(orderInput.address?.stateUF ?? "").trim().toUpperCase(),
           },
-          items: Array.isArray(orderInput.items) ? orderInput.items : [],
+          items: [
+            ...(Array.isArray(orderInput.items) ? orderInput.items : []),
+            ...((orderInput as { bumpItem?: OrderEmailItem }).bumpItem?.name
+              ? [(orderInput as { bumpItem?: OrderEmailItem }).bumpItem as OrderEmailItem]
+              : []),
+          ],
           subtotal: Number(orderInput.subtotal ?? value),
           shipping: Number(orderInput.shipping ?? 0),
           discount: Number(orderInput.discount ?? 0) > 0 ? Number(orderInput.discount) : undefined,

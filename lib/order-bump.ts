@@ -11,11 +11,11 @@
 //
 // PRA TROCAR O BUMP: mexa só neste arquivo (slug e preço). O resto se ajusta.
 
-import { products, type Product } from "@/lib/products"
+import type { Product } from "@/lib/products"
 
 export const ORDER_BUMP = {
   /** Produto do catálogo oferecido no bump. */
-  slug: "kit-garfo-tridente-garra-de-urso-10-garfos-petisco-churrasco",
+  slug: "kit-garfo-tridente-garra-de-urso-10-garfos-petisco-churras",
   /** Preço promocional do bump, em centavos. Só vale dentro do checkout. */
   precoCents: 1990,
   titulo: "Leva o kit de garfos junto?",
@@ -41,8 +41,11 @@ export type OrderBumpOferta = {
  * existe mais, saiu do ar, ou quando a promoção não faz sentido (preço do bump
  * maior ou igual ao normal) — nesses casos o checkout simplesmente não mostra
  * o bump, em vez de exibir uma oferta mentirosa.
+ *
+ * O `catalogo` TEM que ser o mesclado (getMergedProducts): o preço válido é o
+ * do KV. Usar o array base foi o que quebrou o checkout inteiro antes.
  */
-export function getOrderBump(catalogo: Product[] = products): OrderBumpOferta | null {
+export function getOrderBump(catalogo: Product[]): OrderBumpOferta | null {
   const p = catalogo.find((entry) => entry.slug === ORDER_BUMP.slug)
   if (!p) return null
 

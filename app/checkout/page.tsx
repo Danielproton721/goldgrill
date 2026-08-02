@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, Suspense, useCallback, useRef } from 'react';
-import { Lock, CreditCard, ShieldCheck, Mail, Trash2, ShoppingBag, X, Copy, PackageCheck, Upload, FileCheck2, Truck, TicketPercent, Flame } from 'lucide-react';
+import { Lock, CreditCard, ShieldCheck, Mail, Trash2, ShoppingBag, X, Copy, PackageCheck, Upload, FileCheck2, Truck, TicketPercent, Flame, Check } from 'lucide-react';
 
 // Escassez: mesmo cálculo da PDP (hash do slug) — o "restam X" tem que bater
 // entre página de produto e checkout, senão o cliente percebe a inconsistência.
@@ -301,7 +301,27 @@ function CheckoutContent() {
   const shippingPrice = selectedShipping.price;
   // O cupom (cart-context) desconta AQUI — deste valor derivam o resumo, o
   // parcelamento, a conversão do Google Ads e o valor cobrado no gateway.
-  const checkoutTotal = Math.max(0, totalPrice - couponDiscount) + shippingPrice;
+  // ORDER BUMP — oferta de item barato na hora de pagar, pra subir o valor do
+  // pedido. O preço mostrado aqui é informativo: quem soma no total assinado é
+  // o servidor (o cliente só manda "quero"), igual ao resto do checkout.
+  const [bumpOferta, setBumpOferta] = useState<{
+    slug: string; id: number; nome: string; imagem: string;
+    precoCents: number; precoNormalCents: number; descontoPct: number;
+    titulo: string; argumento: string;
+  } | null>(null);
+  const [bumpAceito, setBumpAceito] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetch('/api/order-bump')
+      .then((r) => r.json())
+      .then((d) => { if (!cancelado) setBumpOferta(d?.oferta ?? null); })
+      .catch(() => {}); // sem oferta o checkout segue normal
+    return () => { cancelado = true; };
+  }, []);
+
+  const bumpPrice = bumpAceito && bumpOferta ? bumpOferta.precoCents / 100 : 0;
+  const checkoutTotal = Math.max(0, totalPrice - couponDiscount) + shippingPrice + bumpPrice;
 
   // Mantém a ref espelhada com o estado (lida pelas armadilhas de saída).
   useEffect(() => {
@@ -468,6 +488,18 @@ function CheckoutContent() {
               compareAtPrice: item.compareAtPrice,
               quantity: item.quantity,
             })),
+            // Bump escolhido entra como item do pedido, pra aparecer no
+            // e-mail de confirmação e no painel igual aos demais.
+            ...(bumpAceito && bumpOferta
+              ? {
+                  bumpItem: {
+                    name: bumpOferta.nome,
+                    price: bumpOferta.precoCents / 100,
+                    quantity: 1,
+                    image: bumpOferta.imagem,
+                  },
+                }
+              : {}),
             subtotal: totalPrice,
             shipping: shippingPrice,
             discount: couponDiscount,
@@ -557,6 +589,8 @@ function CheckoutContent() {
         // valor — pra a sessão bater com o total cobrado no PIX/cartão.
         coupon: couponApplied,
         shippingCents: Math.round(shippingPrice * 100),
+        // Só o "quero" — o preço do bump é decidido no servidor.
+        bump: bumpAceito && Boolean(bumpOferta),
       }),
     });
 
@@ -669,6 +703,18 @@ function CheckoutContent() {
               compareAtPrice: item.compareAtPrice,
               quantity: item.quantity,
             })),
+            // Bump escolhido entra como item do pedido, pra aparecer no
+            // e-mail de confirmação e no painel igual aos demais.
+            ...(bumpAceito && bumpOferta
+              ? {
+                  bumpItem: {
+                    name: bumpOferta.nome,
+                    price: bumpOferta.precoCents / 100,
+                    quantity: 1,
+                    image: bumpOferta.imagem,
+                  },
+                }
+              : {}),
             subtotal: totalPrice,
             shipping: shippingPrice,
             discount: couponDiscount,
@@ -1805,6 +1851,56 @@ function CheckoutContent() {
                 <span>{selectedShipping.name}</span>
                 <span>{selectedShipping.eta}</span>
               </div>
+              {/* ORDER BUMP: fica colado no Total porque é ali que a pessoa
+                  decide. Um clique adiciona; nada de sair da tela. */}
+              {bumpOferta && (
+                <button
+                  type="button"
+                  onClick={() => setBumpAceito((v) => !v)}
+                  aria-pressed={bumpAceito}
+                  className={`w-full rounded-xl border-2 border-dashed p-3 text-left transition-colors ${
+                    bumpAceito
+                      ? 'border-[#eaa50c] bg-[#fdf6e3]'
+                      : 'border-gray-200 bg-gray-50 hover:border-[#eaa50c]/60'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
+                        bumpAceito ? 'border-[#eaa50c] bg-[#eaa50c] text-white' : 'border-gray-300 bg-white'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {bumpAceito && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    {bumpOferta.imagem && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={bumpOferta.imagem} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black uppercase tracking-wide text-[#b98a2e]">
+                        {bumpOferta.titulo}
+                      </p>
+                      <p className="mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-800">
+                        {bumpOferta.nome}
+                      </p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-gray-500">{bumpOferta.argumento}</p>
+                      <p className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-sm font-black text-emerald-600">
+                          + R$ {(bumpOferta.precoCents / 100).toFixed(2).replace('.', ',')}
+                        </span>
+                        <span className="text-[11px] text-gray-400 line-through">
+                          R$ {(bumpOferta.precoNormalCents / 100).toFixed(2).replace('.', ',')}
+                        </span>
+                        <span className="rounded bg-emerald-100 px-1 text-[10px] font-black text-emerald-700">
+                          -{bumpOferta.descontoPct}%
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              )}
+
               <div className="border-t border-gray-100 pt-3 flex justify-between items-baseline text-gray-800 font-black">
                 <span>Total</span>
                 <span className="text-lg">R$ {checkoutTotal.toFixed(2).replace('.', ',')}</span>
