@@ -17,6 +17,7 @@ import {
 import type { Catalog, ProductRow } from "@/lib/catalog"
 import { RichTextEditor } from "./rich-text-editor"
 import { BulkPriceModal } from "./bulk-price-modal"
+import { ProductsImport } from "./products-import"
 
 // Ordenação da lista de produtos no painel.
 type Ordem = "padrao" | "precoDesc" | "precoAsc" | "nomeAsc" | "descontoDesc" | "problemas"
@@ -520,6 +521,13 @@ export function ProductsPanel({
             >
               <Download className="h-4 w-4" /> <span className="hidden sm:inline">Backup</span>
             </a>
+            <ProductsImport
+              disabled={!kvOk || busy}
+              onDone={async (m) => {
+                setMsg(m)
+                await refresh()
+              }}
+            />
           </div>
         </div>
       </div>

@@ -354,6 +354,217 @@ export async function conferirConsolidacao(): Promise<ConfereConsolidacao> {
   }
 }
 
+// --- Importação: restaurar um catálogo vindo de arquivo ----------------------
+// O par do export. Aceita tanto o `products.ts` que o painel gera quanto um
+// JSON com o array de produtos — o arquivo exportado tem o array serializado
+// com JSON.stringify, então os dois caminhos terminam no mesmo JSON.parse.
+//
+// Duas decisões que evitam estrago:
+//  • grava no overlay SÓ o que difere do código (não o produto inteiro). Um
+//    arquivo idêntico ao publicado resulta em zero mudanças e overlay vazio,
+//    em vez de inchar o KV com 230 cópias.
+//  • valida tudo antes de gravar qualquer coisa — catálogo meio importado é
+//    pior que importação recusada.
+
+const CAMPOS_IMPORTAVEIS = [
+  "name",
+  "price",
+  "compareAtPrice",
+  "image",
+  "images",
+  "rating",
+  "reviews",
+  "category",
+  "slug",
+  "description",
+  "tags",
+] as const
+
+export type ModoImportacao = "mesclar" | "substituir"
+
+export type AnaliseImportacao = {
+  total: number
+  novos: { id: string; name: string }[]
+  alterados: { id: string; name: string; campos: string[] }[]
+  iguais: number
+  removidos: { id: string; name: string }[] // só faz sentido no modo substituir
+  erros: string[]
+}
+
+/** Lê o conteúdo do arquivo (.ts exportado ou .json) e devolve os produtos. */
+export function extrairProdutosDeArquivo(texto: string): Product[] {
+  const cru = (texto || "").trim()
+  if (!cru) throw new Error("Arquivo vazio.")
+
+  let bruto: unknown
+  if (cru.startsWith("[")) {
+    bruto = JSON.parse(cru)
+  } else if (cru.startsWith("{")) {
+    // aceita { produtos: [...] } / { products: [...] }
+    const obj = JSON.parse(cru) as Record<string, unknown>
+    bruto = obj.produtos ?? obj.products ?? obj.itens
+  } else {
+    // products.ts: recorta o array e faz o parse
+    const marker = cru.indexOf(PRODUCTS_MARKER)
+    if (marker === -1) {
+      throw new Error(
+        "Não achei o array de produtos no arquivo. Use o .ts baixado no botão Backup, ou um .json com a lista.",
+      )
+    }
+    const inicio = cru.indexOf("[", marker + PRODUCTS_MARKER.length)
+    const fim = findMatchingBracket(cru, inicio) + 1
+    try {
+      bruto = JSON.parse(cru.slice(inicio, fim))
+    } catch {
+      throw new Error(
+        "O array do arquivo não está em formato JSON — provavelmente é um products.ts escrito à mão. " +
+          "Baixe pelo botão Backup e importe esse.",
+      )
+    }
+  }
+
+  if (!Array.isArray(bruto)) throw new Error("O arquivo não contém uma lista de produtos.")
+  if (bruto.length === 0) throw new Error("A lista de produtos está vazia.")
+  if (bruto.length > 3000) throw new Error(`Lista grande demais (${bruto.length} produtos).`)
+  return bruto as Product[]
+}
+
+function validar(lista: Product[]): string[] {
+  const erros: string[] = []
+  const vistos = new Set<string>()
+  lista.forEach((p, i) => {
+    const onde = `item ${i + 1}`
+    const id = String((p as { id?: unknown })?.id ?? "").trim()
+    if (!id || !Number.isFinite(Number(id))) erros.push(`${onde}: id ausente ou não numérico`)
+    else if (vistos.has(id)) erros.push(`${onde}: id ${id} repetido no arquivo`)
+    else vistos.add(id)
+    if (!String(p?.name || "").trim()) erros.push(`${onde}: sem nome`)
+    if (!Number.isFinite(Number(p?.price)) || Number(p?.price) < 0) erros.push(`${onde}: preço inválido`)
+    if (!String(p?.slug || "").trim()) erros.push(`${onde}: sem slug`)
+  })
+  return erros.slice(0, 15)
+}
+
+// Campos do arquivo que diferem de `refer` (o produto de referência).
+function camposQueMudam(novo: Product, refer: Product | undefined): string[] {
+  const mudam: string[] = []
+  for (const campo of CAMPOS_IMPORTAVEIS) {
+    const a = (novo as Record<string, unknown>)[campo]
+    const b = refer ? (refer as Record<string, unknown>)[campo] : undefined
+    const ausenteNosDois = (a === undefined || a === null) && (b === undefined || b === null)
+    if (ausenteNosDois) continue
+    if (JSON.stringify(a ?? null) !== JSON.stringify(b ?? null)) mudam.push(campo)
+  }
+  return mudam
+}
+
+/** Prévia: o que este arquivo faria com a loja, sem gravar nada. */
+export async function analisarImportacao(lista: Product[], modo: ModoImportacao): Promise<AnaliseImportacao> {
+  const erros = validar(lista)
+  const atual = new Map((await getMergedProducts()).map((p) => [String(p.id), p]))
+
+  const novos: AnaliseImportacao["novos"] = []
+  const alterados: AnaliseImportacao["alterados"] = []
+  let iguais = 0
+
+  for (const p of lista) {
+    const id = String(p.id)
+    const antes = atual.get(id)
+    if (!antes) {
+      novos.push({ id, name: String(p.name || "") })
+      continue
+    }
+    const campos = camposQueMudam(p, antes)
+    if (campos.length) alterados.push({ id, name: String(p.name || antes.name), campos })
+    else iguais++
+  }
+
+  const noArquivo = new Set(lista.map((p) => String(p.id)))
+  const removidos =
+    modo === "substituir"
+      ? [...atual.values()]
+          .filter((p) => !noArquivo.has(String(p.id)))
+          .map((p) => ({ id: String(p.id), name: p.name }))
+      : []
+
+  return { total: lista.length, novos, alterados, iguais, removidos, erros }
+}
+
+/** Aplica de verdade. Grava no overlay só a diferença contra o código. */
+export async function importarProdutos(
+  lista: Product[],
+  modo: ModoImportacao,
+): Promise<{ gravados: number; removidos: number }> {
+  if (!kvConfigured()) throw new CatalogReadonlyError()
+  const erros = validar(lista)
+  if (erros.length) throw new Error(`Arquivo inválido: ${erros.join("; ")}`)
+
+  const base = baseById()
+  const overrides = await readOverrides()
+  let gravados = 0
+
+  for (const p of lista) {
+    const id = String(p.id)
+    const noCodigo = base.get(id)
+
+    if (!noCodigo) {
+      // produto que não existe no código: entra inteiro no overlay
+      overrides[id] = { ...p, id: Number(id) } as Product
+      gravados++
+      continue
+    }
+
+    const campos = camposQueMudam(p, noCodigo)
+    if (!campos.length) {
+      // o código já tem esse produto exatamente assim — some do overlay
+      if (overrides[id]) {
+        delete overrides[id]
+        gravados++
+      }
+      continue
+    }
+
+    const partial: Record<string, unknown> = {}
+    for (const campo of campos) {
+      const valor = (p as Record<string, unknown>)[campo]
+      // ausente no arquivo mas presente no código = apagar. O overlay só sabe
+      // apagar compareAtPrice (ver getMergedProducts); nos outros campos o
+      // valor do código prevalece e a diferença é ignorada de propósito.
+      if (valor === undefined || valor === null) {
+        if (campo === "compareAtPrice") partial.compareAtPrice = null
+        continue
+      }
+      partial[campo] = valor
+    }
+    if (Object.keys(partial).length === 0) continue
+    overrides[id] = { ...overrides[id], ...(partial as Partial<Product>) }
+    gravados++
+  }
+
+  await kvSetJSON(OVERRIDES_KEY, overrides)
+
+  // Modo substituir: o que não veio no arquivo sai da loja.
+  let removidos = 0
+  const noArquivo = new Set(lista.map((p) => String(p.id)))
+  if (modo === "substituir") {
+    const atual = await getMergedProducts()
+    const paraRemover = atual.map((p) => String(p.id)).filter((id) => !noArquivo.has(id))
+    if (paraRemover.length) {
+      const deleted = await readDeleted()
+      const uniao = [...new Set([...deleted, ...paraRemover])]
+      await kvSetJSON(DELETED_KEY, uniao)
+      removidos = paraRemover.length
+    }
+  } else {
+    // Mesclar: quem veio no arquivo volta pra loja se estava removido.
+    const deleted = await readDeleted()
+    const restantes = deleted.filter((id) => !noArquivo.has(id))
+    if (restantes.length !== deleted.length) await kvSetJSON(DELETED_KEY, restantes)
+  }
+
+  return { gravados, removidos }
+}
+
 // --- Export: regenera lib/products.ts (só o bloco do array) ------------------
 // Acha o fechamento balanceado do array, respeitando strings e escapes — mesma
 // técnica do scripts/products-editor.ts da loja.
