@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Check, X, RefreshCw, AlertTriangle, CircleDot } from "lucide-react"
 import { KvBackup } from "./kv-backup"
+import { CatalogoConsolidar } from "./catalogo-consolidar"
 
 type Item = { label: string; envs: string[]; set: boolean; level: "req" | "rec" | "opt"; hint: string }
 type Group = { title: string; desc: string; items: Item[] }
@@ -138,6 +139,8 @@ export function SetupStatus() {
           </ul>
         </div>
       ))}
+
+      <CatalogoConsolidar />
 
       <KvBackup banco={data?.bancoPrincipal} />
 

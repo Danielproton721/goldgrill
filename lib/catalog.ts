@@ -296,6 +296,64 @@ export async function pendingChangesCount(): Promise<number> {
   return Object.keys(overrides).length + deleted.length
 }
 
+// --- Consolidação: conferir o overlay contra o código ------------------------
+// Antes de zerar o overlay (o passo final da migração pra fonte única), prova
+// campo a campo que o lib/products.ts JÁ contém cada edição. Sem isto, zerar
+// significa devolver a loja aos preços antigos — venda com preço errado.
+//
+// Trava proposital: se UM campo divergir, `ok` volta falso e a rota se recusa a
+// apagar. Preferimos duas fontes por mais um deploy do que perder edição.
+export type ConfereConsolidacao = {
+  ok: boolean
+  noCodigo: number // produtos no lib/products.ts
+  entradas: number // produtos com edição no overlay
+  campos: number // campos conferidos
+  divergencias: string[] // o que o código ainda não tem
+  deletadosPendentes: string[] // ids marcados como removidos que seguem no código
+}
+
+export async function conferirConsolidacao(): Promise<ConfereConsolidacao> {
+  const overrides = await readOverrides()
+  const deleted = await readDeleted()
+  const noCodigo = baseById()
+
+  const divergencias: string[] = []
+  let campos = 0
+
+  for (const [id, ov] of Object.entries(overrides)) {
+    const base = noCodigo.get(id) as Record<string, unknown> | undefined
+    if (!base) {
+      divergencias.push(`produto ${id} (${(ov as Product)?.name || "sem nome"}) não existe no lib/products.ts`)
+      continue
+    }
+    for (const [campo, valor] of Object.entries(ov)) {
+      if (campo === "id") continue
+      campos++
+      // null no overlay = "campo apagado" (ex.: tirar o preço riscado).
+      if (valor === null) {
+        if (base[campo] !== undefined && base[campo] !== null) {
+          divergencias.push(`produto ${id}: ${campo} devia estar apagado no código`)
+        }
+        continue
+      }
+      if (JSON.stringify(base[campo]) !== JSON.stringify(valor)) {
+        divergencias.push(`produto ${id}: ${campo} diferente do código`)
+      }
+    }
+  }
+
+  const deletadosPendentes = deleted.filter((id) => noCodigo.has(id))
+
+  return {
+    ok: divergencias.length === 0 && deletadosPendentes.length === 0,
+    noCodigo: noCodigo.size,
+    entradas: Object.keys(overrides).length,
+    campos,
+    divergencias: divergencias.slice(0, 20),
+    deletadosPendentes,
+  }
+}
+
 // --- Export: regenera lib/products.ts (só o bloco do array) ------------------
 // Acha o fechamento balanceado do array, respeitando strings e escapes — mesma
 // técnica do scripts/products-editor.ts da loja.
