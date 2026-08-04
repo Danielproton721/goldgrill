@@ -25,9 +25,16 @@ import {
   Redo,
 } from "lucide-react"
 import { Video } from "@/lib/tiptap-video-extension"
+import { comprimirImagem, formatarBytes } from "@/lib/comprimir-imagem"
 
-const MAX_IMAGE_MB = 15
-const MAX_VIDEO_MB = 100
+// Imagem é comprimida no navegador antes de subir (ver lib/comprimir-imagem),
+// então o limite aqui só barra arquivo absurdo — o que sai daqui pesa ~150 KB.
+const MAX_IMAGE_MB = 25
+// Vídeo NÃO tem como comprimir no navegador de forma confiável, e na descrição
+// ele roda com autoplay: o arquivo inteiro baixa em TODA visita. Um vídeo de
+// 100 MB (o limite antigo) torrava 10 GB de franquia em 100 visitas e fazia a
+// página levar meio minuto pra abrir no 4G. 10 MB já é generoso.
+const MAX_VIDEO_MB = 10
 
 function ToolbarButton({
   onClick,
@@ -67,6 +74,10 @@ export function RichTextEditor({
   blobOk: boolean
 }) {
   const [uploading, setUploading] = useState<"image" | "video" | null>(null)
+  // Quanto a compressão economizou na última imagem ("4,4 MB → 180 KB").
+  // Fica visível na barra: peso de mídia é o que derruba a loja, então o número
+  // tem que aparecer na hora, não ficar escondido.
+  const [economia, setEconomia] = useState<string | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
 
@@ -94,23 +105,67 @@ export function RichTextEditor({
     if (!editor) return
     const maxMb = kind === "image" ? MAX_IMAGE_MB : MAX_VIDEO_MB
     if (file.size > maxMb * 1024 * 1024) {
-      alert(`Arquivo muito grande. Envie um(a) ${kind === "image" ? "imagem" : "vídeo"} de até ${maxMb}MB.`)
+      alert(
+        kind === "video"
+          ? `Vídeo de ${formatarBytes(file.size)} é grande demais (máximo ${maxMb} MB).\n\n` +
+              "Vídeo na descrição toca sozinho, então ele baixa inteiro em TODA visita: " +
+              "um arquivo pesado derruba a franquia do storage e faz a página travar no 4G.\n\n" +
+              "Comprima antes (Clipchamp, HandBrake ou o próprio editor do celular exportando em 720p)."
+          : `Arquivo muito grande. Envie uma imagem de até ${maxMb} MB.`
+      )
       return
     }
     setUploading(kind)
+    setEconomia(null)
     try {
-      const blob = await upload(file.name, file, {
+      let envio = file
+      if (kind === "image") {
+        // Comprime ANTES de subir: o que entra no storage é o que o cliente
+        // baixa (a descrição serve <img> cru, sem otimizador no caminho).
+        const r = await comprimirImagem(file)
+        envio = r.arquivo
+        if (!r.intacto) setEconomia(`${formatarBytes(r.antes)} → ${formatarBytes(r.depois)}`)
+      }
+      const blob = await upload(envio.name, envio, {
         access: "public",
         handleUploadUrl: "/api/admin/upload",
         clientPayload: kind,
       })
+
+      // Subiu ≠ aparece. Quando a franquia do storage estoura, a gravação pode
+      // passar e a LEITURA pública responder 403 ("Your store is blocked") — o
+      // arquivo entra na descrição e o cliente vê quadro quebrado. Confere antes
+      // de inserir, senão a página quebra sem ninguém perceber.
+      const alcancavel = await fetch(blob.url, { method: "HEAD", cache: "no-store" })
+        .then((r) => r.ok)
+        .catch(() => false)
+      if (!alcancavel) {
+        alert(
+          "O arquivo subiu, mas o armazenamento não está entregando ele pro público " +
+            "(franquia do plano estourada). Não inseri na descrição pra não deixar " +
+            "imagem quebrada na loja.\n\nMande o arquivo pro time técnico colocar direto no site."
+        )
+        return
+      }
+
       if (kind === "image") {
         editor.chain().focus().setImage({ src: blob.url }).run()
       } else {
         editor.chain().focus().setVideo(blob.url).run()
       }
     } catch (e: any) {
-      alert(e?.message || "Erro ao enviar o arquivo.")
+      const cru = String(e?.message || "")
+      // O Vercel Blob responde "store is blocked"/"suspended" quando a franquia
+      // do plano estourou. O erro cru não diz o que fazer — este diz.
+      const bloqueado = /blocked|suspend|quota|limit/i.test(cru)
+      alert(
+        bloqueado
+          ? "O armazenamento de mídia está bloqueado (franquia do plano estourada), " +
+              "então não dá pra subir foto nem vídeo agora.\n\n" +
+              "Alternativa: mande o arquivo pro time técnico colocar direto no site.\n\n" +
+              `Detalhe técnico: ${cru}`
+          : cru || "Erro ao enviar o arquivo."
+      )
     } finally {
       setUploading(null)
     }
@@ -232,10 +287,19 @@ export function RichTextEditor({
         <ToolbarButton title="Refazer" onClick={() => editor.chain().focus().redo().run()}>
           <Redo className="h-3.5 w-3.5" />
         </ToolbarButton>
-        {uploading && (
+        {uploading ? (
           <span className="ml-auto pr-1 text-[11px] font-medium text-muted-foreground">
-            Enviando {uploading === "image" ? "imagem" : "vídeo"}…
+            {uploading === "image" ? "Comprimindo e enviando imagem…" : "Enviando vídeo…"}
           </span>
+        ) : (
+          economia && (
+            <span
+              className="ml-auto pr-1 text-[11px] font-bold text-emerald-700"
+              title="A imagem foi reduzida no seu navegador antes de subir — o cliente baixa esse tamanho menor"
+            >
+              ✓ {economia}
+            </span>
+          )
         )}
       </div>
 
