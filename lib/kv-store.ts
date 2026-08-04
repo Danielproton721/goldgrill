@@ -95,6 +95,16 @@ async function command(args: (string | number)[]): Promise<any> {
 }
 
 /**
+ * Comando cru do Redis, pro backup/migração do painel (export e import de
+ * banco). Fora disso, use os helpers tipados abaixo — este aqui não tem
+ * fallback em memória nem tolerância a falha.
+ */
+export async function kvComandoCru(args: (string | number)[]): Promise<any> {
+  if (!isKvConfigured) throw new Error("KV não configurado.")
+  return command(args)
+}
+
+/**
  * Leitura tolerante: se o banco não responder, devolve `padrao` em vez de
  * derrubar a página. Só pra LEITURA — escrita continua lançando, porque
  * gravação que falha calada perde pedido.

@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { Check, X, RefreshCw, AlertTriangle, CircleDot } from "lucide-react"
+import { KvBackup } from "./kv-backup"
 
 type Item = { label: string; envs: string[]; set: boolean; level: "req" | "rec" | "opt"; hint: string }
 type Group = { title: string; desc: string; items: Item[] }
-type Data = { activeGateway: string; groups: Group[] }
+type Data = { activeGateway: string; groups: Group[]; bancoPrincipal?: string | null }
 
 const levelLabel: Record<Item["level"], string> = { req: "Obrigatória", rec: "Recomendada", opt: "Opcional" }
 
@@ -137,6 +138,8 @@ export function SetupStatus() {
           </ul>
         </div>
       ))}
+
+      <KvBackup banco={data?.bancoPrincipal} />
 
       <p className="text-[11px] text-muted-foreground">
         As chaves ficam nas variáveis de ambiente (Vercel → Settings → Environment Variables, ou no
