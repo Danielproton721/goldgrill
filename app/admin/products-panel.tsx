@@ -374,6 +374,30 @@ export function ProductsPanel({
       setMsg({ ok: false, text: `Preencha o campo de id ("${idHeader}").` })
       return
     }
+    // Campo de texto apagado grava vazio e o vazio ganha do que está no deploy —
+    // diferente de campo numérico, que vazio nem chega a gravar. Nesses três o
+    // vazio quebra o produto, então barra aqui também (o servidor barra de novo).
+    // Capa vazia só é problema se a galeria também estiver: a 1ª foto da galeria
+    // vira a capa na gravação.
+    const galeriaTemFoto = (() => {
+      try {
+        const arr = JSON.parse(editing.images || "[]")
+        return Array.isArray(arr) && arr.some((u: unknown) => String(u).trim())
+      } catch {
+        return false
+      }
+    })()
+    const essenciais: [string, string][] = [
+      ["name", "Nome"],
+      ["slug", "Link (slug)"],
+      ...(galeriaTemFoto ? [] : ([["image", "Foto de capa"]] as [string, string][])),
+    ]
+    for (const [campo, rotulo] of essenciais) {
+      if (editing[campo] !== undefined && !String(editing[campo]).trim()) {
+        setMsg({ ok: false, text: `${rotulo} não pode ficar vazio — isso quebraria o produto na loja.` })
+        return
+      }
+    }
     setBusy(true)
     setMsg(null)
     try {

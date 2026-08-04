@@ -196,6 +196,28 @@ export class CatalogReadonlyError extends Error {
 // Separado do upsert pra que a edição em massa faça uma leitura e uma gravação
 // só: antes eram 4 comandos por produto (ler/gravar overrides + ler/gravar
 // deletados), o que em 227 produtos virava ~900 idas e voltas no Upstash.
+// Campos de TEXTO que, apagados, quebram o produto no site. Vale lembrar que
+// campo numérico vazio é inofensivo (parseNum devolve undefined, então nem grava
+// e o valor do lib/products.ts continua valendo) — o estrago é só no texto, que
+// grava "" e o vazio ganha do deploy.
+const ESSENCIAIS: { campo: "name" | "slug" | "image"; rotulo: string; estrago: string }[] = [
+  { campo: "name", rotulo: "Nome", estrago: "o produto fica sem nome na vitrine, no carrinho e no pedido" },
+  { campo: "slug", rotulo: "Link (slug)", estrago: "a página do produto deixa de existir e os links da loja quebram" },
+  { campo: "image", rotulo: "Foto de capa", estrago: "o card fica sem imagem na vitrine e no carrinho" },
+]
+
+// Recusa salvar quando um campo essencial vem vazio. Roda sobre o partial já
+// montado, não sobre a linha crua: quem apaga a capa mas mantém fotos na galeria
+// não é barrado, porque a 1ª foto da galeria já virou a capa no rowToPartial.
+function conferirEssenciais(partial: Partial<Product>): void {
+  for (const { campo, rotulo, estrago } of ESSENCIAIS) {
+    const valor = partial[campo]
+    if (valor !== undefined && String(valor).trim() === "") {
+      throw new Error(`${rotulo} não pode ficar vazio — ${estrago}. Preencha ou deixe o valor que já estava.`)
+    }
+  }
+}
+
 function aplicarNoOverlay(
   row: ProductRow,
   overrides: Record<string, Partial<Product>>,
@@ -206,6 +228,7 @@ function aplicarNoOverlay(
 
   const isExisting = base.has(id)
   const partial = rowToPartial(row)
+  conferirEssenciais(partial)
 
   if (isExisting) {
     overrides[id] = { ...overrides[id], ...partial }
