@@ -37,7 +37,10 @@ export function sanitizeDescriptionHtml(html: string): string {
     allowedTags: ALLOWED_TAGS,
     allowedAttributes: {
       a: ["href", "target", "rel"],
-      img: ["src", "alt", "class"],
+      // `loading` liberado pra a descrição poder marcar as imagens como lazy:
+      // elas ficam abaixo da dobra, então baixar antes da pessoa rolar é peso
+      // jogado fora — e na PDP do produto principal isso somava >1 MB.
+      img: ["src", "alt", "class", "loading"],
       video: ["src", "class", "autoplay", "loop", "muted", "playsinline"],
       "*": ["class", "style"],
     },
