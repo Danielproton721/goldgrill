@@ -398,6 +398,23 @@ export function ProductsPanel({
         return
       }
     }
+
+    // Descrição vazia é permitida (produto sem descrição existe), mas é fácil de
+    // fazer sem querer: o editor devolve "<p></p>" e a intuição de todo mundo é
+    // que apagar "volta o texto do deploy" — não volta. Só pergunta quando havia
+    // descrição antes, pra não incomodar em produto que já era sem descrição.
+    const vazia = (html: string) =>
+      !html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim() && !/<(img|video)\b/i.test(html)
+    const antes = catalog.rows.find((r) => r[idHeader] === editing[idHeader])?.description ?? ""
+    if (editing.description !== undefined && vazia(editing.description) && !vazia(antes)) {
+      const segue = window.confirm(
+        "A descrição vai ficar EM BRANCO na loja.\n\n" +
+          "Apagar aqui não faz voltar o texto que está no deploy — o vazio vale por cima dele.\n\n" +
+          "Quer salvar assim mesmo?"
+      )
+      if (!segue) return
+    }
+
     setBusy(true)
     setMsg(null)
     try {
