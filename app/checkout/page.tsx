@@ -339,11 +339,17 @@ function CheckoutContent() {
   // aba e volta — assim ela não perde o código de rastreio. Não reescreve
   // `orderCode` de propósito, para a conversão do Google Ads não disparar 2x.
   useEffect(() => {
+    // Só reexibe a confirmação quando NÃO há carrinho ativo. Com itens
+    // escolhidos a pessoa está comprando de novo — mostrar a compra anterior
+    // travaria a venda (o snapshot vale 7 dias).
+    if (items.length > 0) return;
     const saved = readConfirmedOrder();
     if (saved) {
       setConfirmedOrder(saved);
       setPaymentConfirmed(true);
     }
+    // Roda só na montagem: depois disso quem manda é o fluxo de pagamento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pagou.ai Payment Element SDK v3 — carrega script e monta o card element
@@ -605,7 +611,7 @@ function CheckoutContent() {
     if (!res.ok) {
       throw new Error(data?.error || 'Nao foi possivel validar o checkout.');
     }
-  }, [items, couponApplied, shippingPrice]);
+  }, [items, couponApplied, shippingPrice, bumpAceito, bumpOferta, bumpNoCarrinho]);
 
   const triggerError = (newErrors: Record<string, boolean>) => {
     setErrors(newErrors);
