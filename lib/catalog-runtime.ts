@@ -75,11 +75,23 @@ async function readOverlay(): Promise<Overlay> {
 // (null/undefined ou número não-finito). Blindagem: um override mal gravado
 // — ex.: preço digitado com vírgula virou NaN/null no KV — nunca substitui um
 // campo bom por lixo, então o site não quebra (ex.: price.toFixed em null).
+// Campos em que `null` no overlay é INTENÇÃO de apagar, não lixo. Hoje só o
+// preço riscado: o painel grava null pra "tirar o riscado" (ver rowToPartial —
+// undefined não sobrevive ao JSON.stringify do KV, então o marcador é null).
+const APAGAVEIS = new Set(["compareAtPrice"])
+
 function mergeOverride<T extends { id: number }>(item: T, ov: Partial<Product> | undefined): T {
   if (!ov) return item
   const merged = { ...item } as Record<string, unknown>
   for (const [key, value] of Object.entries(ov)) {
-    if (value === null || value === undefined) continue
+    if (value === null) {
+      // Sem isto, "tirar o riscado" funcionava no painel e no checkout (que leem
+      // por getMergedProducts) mas NÃO na página que o cliente vê: o null era
+      // descartado aqui e o riscado do lib/products.ts voltava pra vitrine.
+      if (APAGAVEIS.has(key)) delete merged[key]
+      continue
+    }
+    if (value === undefined) continue
     if (typeof value === "number" && !Number.isFinite(value)) continue
     merged[key] = value
   }
